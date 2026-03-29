@@ -1,0 +1,5 @@
+# 小火量化 - Python 依赖
+pandas>=1.5.0
+numpy>=1.23.0
+tushare>=1.2.0
+akshare>=1.10.0
