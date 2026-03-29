@@ -271,9 +271,15 @@ class DataSourceManager:
             return f"{symbol}.SZ"
     
     def _convert_from_ts_code(self, ts_code: str) -> str:
-        """从 Tushare 格式转换回普通格式"""
+        """从 Tushare 格式转换回 AkShare 格式"""
         if '.' in ts_code:
-            return ts_code.split('.')[0]
+            code, market = ts_code.split('.')
+            if market == 'SH':
+                return f"sh{code}"
+            elif market == 'SZ':
+                return f"sz{code}"
+            elif market == 'BJ':
+                return f"bj{code}"
         return ts_code
 
 
