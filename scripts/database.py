@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-小火量化 - 数据库存储模块
+火箭量化 - 数据库存储模块
 使用 SQLite 存储行情和基本面数据
 """
 
@@ -125,6 +125,59 @@ class QuantDatabase:
                 last_sync_date TEXT,
                 last_sync_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(data_type, ts_code)
+            )
+        ''')
+        
+        # 持仓表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS portfolio (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts_code TEXT NOT NULL,
+                name TEXT,
+                buy_price REAL NOT NULL,
+                quantity INTEGER NOT NULL,
+                buy_date TEXT NOT NULL,
+                status TEXT DEFAULT 'holding',
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # 收益跟踪表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS return_tracking (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tracking_date TEXT NOT NULL,
+                tracking_time TEXT NOT NULL,
+                total_value REAL,
+                total_cost REAL,
+                total_return_pct REAL,
+                daily_return_pct REAL,
+                benchmark_return_pct REAL,
+                attribution_data TEXT,
+                quant_metrics TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tracking_date, tracking_time)
+            )
+        ''')
+        # 自动升级：为已有表添加quant_metrics字段（兼容老用户）
+        try:
+            cursor.execute("ALTER TABLE return_tracking ADD COLUMN quant_metrics TEXT")
+        except Exception:
+            # 字段已经存在，忽略错误
+            pass
+        
+        # 投资报告表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS investment_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_date TEXT NOT NULL,
+                report_type TEXT NOT NULL,
+                content TEXT,
+                summary TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(report_date, report_type)
             )
         ''')
         
@@ -418,6 +471,298 @@ class QuantDatabase:
             "date_range": date_range,
             "db_path": self.db_path
         }
+    
+    # ============================================================
+    # 持仓管理方法
+    # ============================================================
+    
+    def add_position(self, ts_code: str, name: str, buy_price: float, 
+                    quantity: int, buy_date: str, buy_time: str = None, 
+                    notes: str = None) -> int:
+        """
+        添加持仓
+        
+        Args:
+            ts_code: 股票代码
+            name: 股票名称
+            buy_price: 买入价格
+            quantity: 数量
+            buy_date: 买入日期
+            buy_time: 买入时间（可选）
+            notes: 备注
+            
+        Returns:
+            新记录ID
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            INSERT INTO portfolio (ts_code, name, buy_price, quantity, buy_date, buy_time, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (ts_code, name, buy_price, quantity, buy_date, buy_time, notes))
+        self.conn.commit()
+        return cursor.lastrowid
+    
+    def update_position(self, position_id: int, **kwargs) -> bool:
+        """
+        更新持仓
+        
+        Args:
+            position_id: 持仓ID
+            **kwargs: 要更新的字段
+            
+        Returns:
+            是否成功
+        """
+        allowed_fields = ['buy_price', 'quantity', 'buy_date', 'status', 'notes']
+        updates = []
+        params = []
+        
+        for key, value in kwargs.items():
+            if key in allowed_fields:
+                updates.append(f"{key} = ?")
+                params.append(value)
+        
+        if not updates:
+            return False
+        
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(position_id)
+        
+        cursor = self.conn.cursor()
+        cursor.execute(f'''
+            UPDATE portfolio SET {', '.join(updates)}
+            WHERE id = ?
+        ''', params)
+        self.conn.commit()
+        return cursor.rowcount > 0
+    
+    def remove_position(self, position_id: int) -> bool:
+        """
+        删除持仓
+        
+        Args:
+            position_id: 持仓ID
+            
+        Returns:
+            是否成功
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('DELETE FROM portfolio WHERE id = ?', (position_id,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+    
+    def get_positions(self, status: str = 'holding') -> List[Dict[str, Any]]:
+        """
+        获取持仓列表
+        
+        Args:
+            status: 持仓状态 ('holding', 'sold', 'all')
+            
+        Returns:
+            持仓列表
+        """
+        cursor = self.conn.cursor()
+        
+        if status == 'all':
+            cursor.execute('SELECT * FROM portfolio ORDER BY created_at DESC')
+        else:
+            cursor.execute('SELECT * FROM portfolio WHERE status = ? ORDER BY created_at DESC', (status,))
+        
+        positions = []
+        for row in cursor.fetchall():
+            positions.append(dict(row))
+        
+        return positions
+    
+    def get_position_by_id(self, position_id: int) -> Optional[Dict[str, Any]]:
+        """
+        根据ID获取持仓
+        
+        Args:
+            position_id: 持仓ID
+            
+        Returns:
+            持仓信息
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT * FROM portfolio WHERE id = ?', (position_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    
+    def get_position_by_code(self, ts_code: str, status: str = 'holding') -> List[Dict[str, Any]]:
+        """
+        根据股票代码获取持仓
+        
+        Args:
+            ts_code: 股票代码
+            status: 持仓状态
+            
+        Returns:
+            持仓列表
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT * FROM portfolio WHERE ts_code = ? AND status = ?
+            ORDER BY created_at DESC
+        ''', (ts_code, status))
+        
+        positions = []
+        for row in cursor.fetchall():
+            positions.append(dict(row))
+        
+        return positions
+    
+    # ============================================================
+    # 收益跟踪方法
+    # ============================================================
+    
+    def save_return_tracking(self, tracking_date: str, tracking_time: str, 
+                            total_value: float, total_cost: float,
+                            total_return_pct: float, daily_return_pct: float,
+                            benchmark_return_pct: float = None,
+                            attribution_data: dict = None,
+                            quant_metrics: dict = None) -> int:
+        """
+        保存收益跟踪数据
+        
+        Args:
+            tracking_date: 跟踪日期
+            tracking_time: 跟踪时间 ('midday', 'close')
+            total_value: 总市值
+            total_cost: 总成本
+            total_return_pct: 总收益率
+            daily_return_pct: 日收益率
+            benchmark_return_pct: 基准收益率
+            attribution_data: 归因分析数据
+            quant_metrics: 量化指标数据（波动率、夏普率等）
+            
+        Returns:
+            新记录ID
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO return_tracking 
+            (tracking_date, tracking_time, total_value, total_cost, 
+             total_return_pct, daily_return_pct, benchmark_return_pct, attribution_data, quant_metrics)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            tracking_date, tracking_time, total_value, total_cost,
+            total_return_pct, daily_return_pct, benchmark_return_pct,
+            json.dumps(attribution_data) if attribution_data else None,
+            json.dumps(quant_metrics) if quant_metrics else None
+        ))
+        self.conn.commit()
+        return cursor.lastrowid
+    
+    def get_return_tracking(self, tracking_date: str = None, 
+                           tracking_time: str = None, limit: int = 30) -> List[Dict[str, Any]]:
+        """
+        获取收益跟踪数据
+        
+        Args:
+            tracking_date: 跟踪日期
+            tracking_time: 跟踪时间
+            limit: 返回记录数限制
+            
+        Returns:
+            收益跟踪列表
+        """
+        cursor = self.conn.cursor()
+        query = "SELECT * FROM return_tracking"
+        params = []
+        conditions = []
+        
+        if tracking_date:
+            conditions.append("tracking_date = ?")
+            params.append(tracking_date)
+        if tracking_time:
+            conditions.append("tracking_time = ?")
+            params.append(tracking_time)
+        
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        
+        query += " ORDER BY tracking_date DESC, tracking_time DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        
+        results = []
+        for row in cursor.fetchall():
+            data = dict(row)
+            if data.get('attribution_data'):
+                data['attribution_data'] = json.loads(data['attribution_data'])
+            results.append(data)
+        
+        return results
+    
+    # ============================================================
+    # 投资报告方法
+    # ============================================================
+    
+    def save_investment_report(self, report_date: str, report_type: str,
+                              content: str, summary: str = None) -> int:
+        """
+        保存投资报告
+        
+        Args:
+            report_date: 报告日期
+            report_type: 报告类型 ('midday', 'daily', 'weekly')
+            content: 报告内容
+            summary: 报告摘要
+            
+        Returns:
+            新记录ID
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO investment_reports 
+            (report_date, report_type, content, summary)
+            VALUES (?, ?, ?, ?)
+        ''', (report_date, report_type, content, summary))
+        self.conn.commit()
+        return cursor.lastrowid
+    
+    def get_investment_report(self, report_date: str, report_type: str) -> Optional[Dict[str, Any]]:
+        """
+        获取投资报告
+        
+        Args:
+            report_date: 报告日期
+            report_type: 报告类型
+            
+        Returns:
+            报告内容
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT * FROM investment_reports 
+            WHERE report_date = ? AND report_type = ?
+        ''', (report_date, report_type))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    
+    def get_latest_reports(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        获取最新的投资报告
+        
+        Args:
+            limit: 返回记录数限制
+            
+        Returns:
+            报告列表
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT * FROM investment_reports 
+            ORDER BY report_date DESC, created_at DESC LIMIT ?
+        ''', (limit,))
+        
+        reports = []
+        for row in cursor.fetchall():
+            reports.append(dict(row))
+        
+        return reports
     
     def close(self):
         """关闭数据库连接"""

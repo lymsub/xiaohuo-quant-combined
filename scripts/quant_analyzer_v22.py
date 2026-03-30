@@ -777,7 +777,7 @@ def _prompt_for_token() -> Tuple[Optional[str], bool]:
         (token, use_tushare) - token 如果用户输入了，use_tushare 是否使用 Tushare
     """
     print("\n" + "="*80)
-    print(" " * 20 + "🔥 欢迎使用小火量化 v2.4")
+    print(" " * 20 + "🔥 欢迎使用火箭量化 v2.4")
     print("="*80)
     print("\n💡 首次使用建议：")
     print("  • 输入 Tushare Token → 获得更丰富的数据字段")

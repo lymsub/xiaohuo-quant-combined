@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-小火量化 - 配置管理模块
+火箭量化 - 配置管理模块
 统一管理所有配置、路径、环境变量
 """
 
@@ -263,9 +263,9 @@ class SetupWizard:
             是否安装成功
         """
         print("\n" + "="*80)
-        print(" " * 25 + "🔥 小火量化 - 安装向导")
+        print(" " * 25 + "🔥 火箭量化 - 安装向导")
         print("="*80)
-        print("\n欢迎使用小火量化！这个向导将帮你完成初始配置。\n")
+        print("\n欢迎使用火箭量化！这个向导将帮你完成初始配置。\n")
         
         # 步骤1: 确保配置目录
         Config.ensure_config_dir()
@@ -286,7 +286,7 @@ class SetupWizard:
         print("\n" + "="*80)
         print(" " * 25 + "✅ 安装配置完成！")
         print("="*80)
-        print("\n🚀 现在你可以开始使用小火量化了！")
+        print("\n🚀 现在你可以开始使用火箭量化了！")
         print("\n使用示例：")
         print("  分析个股: python quant_analyzer_v22.py --code 600519")
         print("  涨幅榜:   python get_today_gainers.py")
@@ -332,7 +332,7 @@ class SetupWizard:
 def main():
     """主函数：运行安装向导"""
     parser = argparse.ArgumentParser(
-        description='小火量化 - 安装配置向导',
+        description='火箭量化 - 安装配置向导',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:

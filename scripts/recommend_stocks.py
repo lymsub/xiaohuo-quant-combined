@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-小火量化 - 今日最佳股票推荐核心算法
+火箭量化 - 今日最佳股票推荐核心算法
 综合多维度评分，推荐今日最佳股票
 
 评分维度：
@@ -446,7 +446,7 @@ def save_recommendations(recommendations: List[Dict[str, Any]], output_file: str
 
 def main():
     parser = argparse.ArgumentParser(
-        description='小火量化 - 今日最佳股票推荐',
+        description='火箭量化 - 今日最佳股票推荐',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
@@ -456,8 +456,8 @@ def main():
         """
     )
     
-    parser.add_argument('--n', type=int, default=10, 
-                        help='推荐数量（默认10只）')
+    parser.add_argument('--n', type=int, default=5, 
+                        help='推荐数量（默认5只）')
     parser.add_argument('--output', type=str, 
                         help='输出文件路径（JSON格式）')
     
