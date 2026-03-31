@@ -91,7 +91,7 @@ class DataSourceManager:
     
     def _init_sources(self):
         """初始化所有数据源"""
-        # 尝试初始化 Tushare（只有当有 token 时才初始化）
+        # 尝试初始化 Tushare（只有当有有效 token 时才初始化）
         if self.tushare_token and self.tushare_token.strip() and self.tushare_token != "dummy_token_for_akshare":
             try:
                 import tushare as ts
@@ -102,7 +102,7 @@ class DataSourceManager:
             except Exception as e:
                 print(f"⚠️  Tushare 初始化失败: {e}")
         else:
-            print(f"ℹ️  未提供 Tushare Token，跳过 Tushare 初始化")
+            print(f"ℹ️  未提供有效 Tushare Token，使用免费数据源（新浪/腾讯/AkShare）")
         
         # 尝试初始化 AkShare
         try:
@@ -166,7 +166,6 @@ class DataSourceManager:
                         time.sleep(self.retry_delay)
                         continue
                     print(f"⚠️  {src} 获取 {ts_code} 实时价格失败: {e}")
-                break
         
         raise Exception(f"所有数据源都无法获取 {ts_code} 的实时价格")
     
@@ -347,7 +346,8 @@ class DataSourceManager:
         import json
         json_str = text.split('=')[1]
         data = json.loads(json_str)
-        lines = data['data'][code[2:]]['qfqday']
+        # 腾讯接口返回的键是完整的code（如sz000001），不是去掉前缀的部分
+        lines = data['data'][code]['qfqday']
         df = pd.DataFrame(lines, columns=['date', 'open', 'close', 'high', 'low', 'volume', 'amount'])
         df['trade_date'] = pd.to_datetime(df['date'])
         for col in ['open', 'high', 'low', 'close', 'volume', 'amount']:
@@ -409,13 +409,12 @@ class DataSourceManager:
         # 转换股票代码格式
         symbol = self._convert_from_ts_code(ts_code)
         
-        # 转换日期格式
-        start_dt = datetime.strptime(start_date, '%Y%m%d')
-        end_dt = datetime.strptime(end_date, '%Y%m%d')
-        start_str = start_dt.strftime('%Y%m%d')
-        end_str = end_dt.strftime('%Y%m%d')
+        # 转换日期格式：从YYYYMMDD转为YYYYMMDD（东方财富接口要求）
+        start_str = start_date
+        end_str = end_date
         
-        df = self.akshare.stock_zh_a_hist_tx(symbol=symbol, start_date=start_str, end_date=end_str)
+        # 使用东方财富接口，更稳定，非交易时段也能获取数据
+        df = self.akshare.stock_zh_a_hist_em(symbol=symbol, period="daily", start_date=start_str, end_date=end_str, adjust="qfq")
         
         if df is not None and not df.empty:
             # 转换为 Tushare 兼容格式
@@ -496,48 +495,4 @@ def get_data_manager(tushare_token: Optional[str] = None,
     return DataSourceManager(tushare_token, enable_fallback, retry_count, retry_delay)
 
 
-if __name__ == '__main__':
-    print("="*80)
-    print("🚀 测试统一四数据源管理器")
-    print("="*80)
-    
-    # 尝试加载 Token
-    token = None
-    token_file = Path.home() / '.xiaohuo_quant' / 'token.txt'
-    if token_file.exists():
-        token = token_file.read_text().strip()
-    
-    # 创建数据源管理器
-    mgr = get_data_manager(token, enable_fallback=True, retry_count=2)
-    
-    print(f"\n📊 可用数据源: {mgr.get_available_sources()}")
-    
-    # 测试获取实时价格
-    print("\n1️⃣  测试获取实时价格（恒帅股份 300969.SZ）...")
-    try:
-        price, source = mgr.get_realtime_price('300969.SZ')
-        print(f"✅ 成功从 {source} 获取实时价格: ¥{price:.2f}")
-    except Exception as e:
-        print(f"❌ 失败: {e}")
-    
-    # 测试获取股票列表
-    print("\n2️⃣  测试获取股票列表...")
-    try:
-        df_list, source = mgr.get_stock_list()
-        print(f"✅ 成功从 {source} 获取 {len(df_list)} 只股票")
-    except Exception as e:
-        print(f"❌ 失败: {e}")
-    
-    # 测试获取日线行情
-    print("\n3️⃣  测试获取日线行情...")
-    try:
-        end_date = datetime.now().strftime('%Y%m%d')
-        start_date = (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
-        df_hist, source = mgr.get_daily_quotes('600519.SH', start_date, end_date)
-        print(f"✅ 成功从 {source} 获取 {len(df_hist)} 条日线数据")
-    except Exception as e:
-        print(f"❌ 失败: {e}")
-    
-    print("\n" + "="*80)
-    print("✅ 测试完成！实时行情成功率已提升至99.9%")
-    print("="*80)
+

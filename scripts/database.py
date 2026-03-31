@@ -137,12 +137,19 @@ class QuantDatabase:
                 buy_price REAL NOT NULL,
                 quantity INTEGER NOT NULL,
                 buy_date TEXT NOT NULL,
+                buy_time TEXT,
                 status TEXT DEFAULT 'holding',
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        # 自动升级：为已有表添加buy_time字段（兼容老用户）
+        try:
+            cursor.execute("ALTER TABLE portfolio ADD COLUMN buy_time TEXT")
+        except Exception:
+            # 字段已经存在，忽略错误
+            pass
         
         # 收益跟踪表
         cursor.execute('''
@@ -784,19 +791,4 @@ def get_db(db_path: Optional[str] = None) -> QuantDatabase:
     return QuantDatabase(db_path)
 
 
-if __name__ == '__main__':
-    # 测试数据库
-    print("🚀 测试数据库模块...")
-    
-    with QuantDatabase() as db:
-        stats = db.get_stats()
-        print(f"\n📊 数据库统计:")
-        print(f"   日线数据量: {stats['daily_quotes_count']}")
-        print(f"   股票信息数: {stats['stock_basic_count']}")
-        print(f"   财务指标数: {stats['financial_indicators_count']}")
-        print(f"   唯一股票数（行情）: {stats['unique_stocks']}")
-        print(f"   唯一股票数（财务）: {stats['unique_financial_stocks']}")
-        print(f"   日期范围: {stats['date_range'][0]} 至 {stats['date_range'][1]}")
-        print(f"   数据库路径: {stats['db_path']}")
-    
-    print("\n✅ 测试完成！")
+

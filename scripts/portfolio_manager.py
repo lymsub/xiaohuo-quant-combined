@@ -498,14 +498,4 @@ def format_portfolio_table(portfolio_data: Dict[str, Any]) -> str:
     return "\n".join(output)
 
 
-if __name__ == '__main__':
-    print("🚀 测试持仓管理模块...")
-    
-    manager = get_portfolio_manager()
-    
-    # 测试：列出持仓
-    print("\n📊 当前持仓:")
-    portfolio = manager.list_portfolio()
-    print(format_portfolio_table(portfolio))
-    
-    print("\n✅ 测试完成！")
+

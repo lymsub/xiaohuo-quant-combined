@@ -138,13 +138,14 @@ class UnifiedDataSource:
             try:
                 self.data_mgr = get_data_manager(
                     token, 
-                    preferred_source=preferred_source,
-                    enable_fallback=enable_fallback
+                    enable_fallback=enable_fallback,
+                    retry_count=2,
+                    retry_delay=0.5
                 )
                 self.using_data_mgr = True
-                print("🔄 双数据源管理器已启用")
+                print("🔄 四数据源管理器已启用（新浪/腾讯/Tushare/AkShare自动互补）")
             except Exception as e:
-                print(f"⚠️  双数据源管理器初始化失败: {e}")
+                print(f"⚠️  四数据源管理器初始化失败: {e}")
                 self.using_data_mgr = False
                 # 降级到传统 Tushare 方式
                 import tushare as ts
@@ -771,36 +772,9 @@ class QuantAnalyzer:
 
 def _prompt_for_token() -> Tuple[Optional[str], bool]:
     """
-    交互式询问用户是否输入 Tushare Token
-    
-    Returns:
-        (token, use_tushare) - token 如果用户输入了，use_tushare 是否使用 Tushare
+    无感知默认配置：自动使用免费数据源，无需用户交互
     """
-    print("\n" + "="*80)
-    print(" " * 20 + "🔥 欢迎使用火箭量化 v2.4")
-    print("="*80)
-    print("\n💡 首次使用建议：")
-    print("  • 输入 Tushare Token → 获得更丰富的数据字段")
-    print("  • 跳过（直接回车）→ 使用免费的 AkShare 数据源")
-    print("\n📖 获取 Tushare Token：https://tushare.pro/register")
-    print("="*80)
-    
-    try:
-        token_input = input("\n请输入 Tushare Token（直接回车跳过使用 AkShare）：").strip()
-        
-        if token_input:
-            # 用户输入了 token
-            Config.save_token(token_input)
-            return token_input, True
-        else:
-            # 用户跳过，使用 AkShare
-            print("\n✅ 已选择使用 AkShare 数据源（免费无限制）")
-            return None, False
-            
-    except (EOFError, KeyboardInterrupt):
-        # 用户中断，使用 AkShare
-        print("\n\n✅ 已选择使用 AkShare 数据源（免费无限制）")
-        return None, False
+    return None, False
 
 
 def main():

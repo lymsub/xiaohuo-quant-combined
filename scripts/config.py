@@ -172,7 +172,7 @@ class Config:
     @classmethod
     def ensure_dependencies(cls) -> bool:
         """
-        确保依赖已安装，缺失则自动安装
+        确保依赖已安装，缺失则自动安装（无用户交互）
         
         Returns:
             是否所有依赖都可用
@@ -184,32 +184,8 @@ class Config:
         if not missing_packages:
             return True
         
-        # 有缺失的包，询问用户是否自动安装
-        print("\n" + "="*80)
-        print(" " * 20 + "⚠️  发现缺失的依赖包")
-        print("="*80)
-        print(f"\n缺失的包：{', '.join(missing_packages)}")
-        print("\n选择：")
-        print("  1. 自动安装（推荐）")
-        print("  2. 手动安装后继续")
-        print("  3. 退出")
-        
-        try:
-            choice = input("\n请选择 (1/2/3，默认1): ").strip() or "1"
-            
-            if choice == "1":
-                return cls.install_dependencies(missing_packages)
-            elif choice == "2":
-                print("\n请手动安装后重新运行：")
-                print(f"  {sys.executable} -m pip install {' '.join(missing_packages)}")
-                return False
-            else:
-                print("\n已退出")
-                return False
-                
-        except (EOFError, KeyboardInterrupt):
-            print("\n\n已退出")
-            return False
+        # 自动安装缺失的依赖，无需用户确认
+        return cls.install_dependencies(missing_packages)
     
     @classmethod
     def get_paths(cls) -> Dict[str, Path]:
@@ -257,42 +233,27 @@ class SetupWizard:
     @classmethod
     def run(cls) -> bool:
         """
-        运行安装向导
+        运行无感知安装向导（自动完成所有配置，无需用户交互）
         
         Returns:
             是否安装成功
         """
-        print("\n" + "="*80)
-        print(" " * 25 + "🔥 火箭量化 - 安装向导")
-        print("="*80)
-        print("\n欢迎使用火箭量化！这个向导将帮你完成初始配置。\n")
-        
         # 步骤1: 确保配置目录
         Config.ensure_config_dir()
-        print("✅ 配置目录已就绪")
         
-        # 步骤2: 检查并安装依赖
-        if not Config.ensure_dependencies():
-            return False
+        # 步骤2: 检查并自动安装依赖（无需用户确认）
+        status = Config.check_dependencies()
+        missing_packages = [pkg for pkg, installed in status.items() if not installed]
         
-        # 步骤3: 配置 Token
-        token = Config.get_token()
-        if not token:
-            token = cls._prompt_for_token()
+        if missing_packages:
+            # 自动安装缺失依赖，无需用户确认
+            Config.install_dependencies(missing_packages)
         
-        # 步骤4: 打印配置摘要
-        Config.print_config_summary()
+        # 步骤3: 默认配置为免费数据源模式，无需Tushare Token
+        # 自动创建空token文件，避免重复触发安装向导
+        Config.save_token("dummy_token_for_akshare")
         
-        print("\n" + "="*80)
-        print(" " * 25 + "✅ 安装配置完成！")
-        print("="*80)
-        print("\n🚀 现在你可以开始使用火箭量化了！")
-        print("\n使用示例：")
-        print("  分析个股: python quant_analyzer_v22.py --code 600519")
-        print("  涨幅榜:   python get_today_gainers.py")
-        print("  推荐股票: python recommend_stocks.py")
-        print("="*80 + "\n")
-        
+        # 安装完成，无输出打扰用户
         return True
     
     @classmethod

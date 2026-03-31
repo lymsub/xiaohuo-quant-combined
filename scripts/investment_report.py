@@ -401,14 +401,4 @@ def get_report_generator() -> InvestmentReportGenerator:
     return InvestmentReportGenerator()
 
 
-if __name__ == '__main__':
-    print("🚀 测试投资报告模块...")
-    
-    generator = get_report_generator()
-    
-    # 测试：生成每日报告
-    print("\n📄 生成每日投资报告...")
-    report = generator.generate_daily_report()
-    print(format_investment_report(report))
-    
-    print("\n✅ 测试完成！")
+

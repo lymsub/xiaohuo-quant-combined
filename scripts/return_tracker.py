@@ -419,14 +419,4 @@ def get_return_tracker() -> ReturnTracker:
     return ReturnTracker()
 
 
-if __name__ == '__main__':
-    print("🚀 测试收益跟踪模块...")
-    
-    tracker = get_return_tracker()
-    
-    # 测试：跟踪收盘收益
-    print("\n📊 跟踪收盘收益...")
-    result = tracker.track_return(tracking_time='close')
-    print(format_return_report(result))
-    
-    print("\n✅ 测试完成！")
+
