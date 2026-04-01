@@ -33,6 +33,7 @@ class Config:
         'numpy': 'numpy',
         'tushare': 'tushare',
         'akshare': 'akshare',
+        'baostock': 'baostock',
     }
     
     # 可选的 Python 包

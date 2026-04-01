@@ -164,6 +164,7 @@ class DataSourceManager:
         Returns:
             (最新价格, 使用的数据源名称)
         """
+        # 优先使用新浪、腾讯两个免费稳定接口
         sources = self._get_source_order(None, 'realtime_quotes', is_realtime=True)
         
         for src in sources:
@@ -427,7 +428,7 @@ class DataSourceManager:
     def _get_realtime_akshare(self, ts_code: str) -> float:
         """从 AkShare 获取实时价格"""
         symbol = self._convert_from_ts_code(ts_code)
-        df = self.akshare.stock_individual_info_em(symbol=symbol.split('.')[0])
+        df = self.akshare.stock_individual_info_em(symbol=symbol)
         price_row = df[df['item'] == '最新价']
         if not price_row.empty:
             return float(price_row.iloc[0]['value'])
@@ -438,22 +439,25 @@ class DataSourceManager:
         # 转换股票代码格式
         symbol = self._convert_from_ts_code(ts_code)
         
-        # 转换日期格式：从YYYYMMDD转为YYYYMMDD（东方财富接口要求）
-        start_str = start_date
-        end_str = end_date
+        # 转换日期格式：从YYYYMMDD转为YYYY-MM-DD
+        start_dt = datetime.strptime(start_date, '%Y%m%d')
+        end_dt = datetime.strptime(end_date, '%Y%m%d')
+        start_str = start_dt.strftime('%Y%m%d')
+        end_str = end_dt.strftime('%Y%m%d')
         
         # 使用东方财富接口，更稳定，非交易时段也能获取数据
-        df = self.akshare.stock_zh_a_hist_em(symbol=symbol, period="daily", start_date=start_str, end_date=end_str, adjust="qfq")
+        df = self.akshare.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_str, end_date=end_str, adjust="qfq")
         
         if df is not None and not df.empty:
             # 转换为 Tushare 兼容格式
             df = df.rename(columns={
-                'date': 'trade_date',
-                'open': 'open',
-                'high': 'high',
-                'low': 'low',
-                'close': 'close',
-                'amount': 'amount'
+                '日期': 'trade_date',
+                '开盘': 'open',
+                '最高': 'high',
+                '最低': 'low',
+                '收盘': 'close',
+                '成交量': 'volume',
+                '成交额': 'amount'
             })
             df['trade_date'] = pd.to_datetime(df['trade_date'])
             df['ts_code'] = ts_code
@@ -473,6 +477,10 @@ class DataSourceManager:
     def _convert_to_ts_code(self, symbol: str) -> str:
         """转换为 Tushare 格式的股票代码"""
         symbol = str(symbol)
+        # 如果已经带了市场后缀，直接返回
+        if '.' in symbol:
+            return symbol
+        # 不带后缀，根据代码开头自动判断市场
         if symbol.startswith('6'):
             return f"{symbol}.SH"
         elif symbol.startswith(('8', '4')):
@@ -489,6 +497,7 @@ class DataSourceManager:
     
     def _convert_to_sina_code(self, ts_code: str) -> str:
         """转换为新浪接口代码格式"""
+        # 如果已经带了市场后缀
         if '.' in ts_code:
             code, market = ts_code.split('.')
             if market == 'SH':
@@ -497,10 +506,20 @@ class DataSourceManager:
                 return f"sz{code}"
             elif market == 'BJ':
                 return f"bj{code}"
+        else:
+            # 不带后缀，根据代码开头自动判断市场
+            code = ts_code
+            if code.startswith('6'):
+                return f"sh{code}"
+            elif code.startswith(('0', '3')):
+                return f"sz{code}"
+            elif code.startswith(('8', '4')):
+                return f"bj{code}"
         return ts_code
     
     def _convert_to_tencent_code(self, ts_code: str) -> str:
         """转换为腾讯接口代码格式"""
+        # 如果已经带了市场后缀
         if '.' in ts_code:
             code, market = ts_code.split('.')
             if market == 'SH':
@@ -508,6 +527,15 @@ class DataSourceManager:
             elif market == 'SZ':
                 return f"sz{code}"
             elif market == 'BJ':
+                return f"bj{code}"
+        else:
+            # 不带后缀，根据代码开头自动判断市场
+            code = ts_code
+            if code.startswith('6'):
+                return f"sh{code}"
+            elif code.startswith(('0', '3')):
+                return f"sz{code}"
+            elif code.startswith(('8', '4')):
                 return f"bj{code}"
         return ts_code
 
@@ -527,13 +555,25 @@ class DataSourceManager:
         start_str = start_dt.strftime('%Y-%m-%d')
         end_str = end_dt.strftime('%Y-%m-%d')
         
-        # Baostock 代码格式转换：600xxx.SH -> sh.600xxx；000xxx.SZ -> sz.000xxx
+        # Baostock 代码格式转换：支持带后缀和不带后缀两种格式
         if ts_code.endswith('.SH'):
-            bs_code = f"sh.{ts_code.split('.')[0]}"
+            code = ts_code.split('.')[0]
+            bs_code = f"sh.{code}"
         elif ts_code.endswith('.SZ'):
-            bs_code = f"sz.{ts_code.split('.')[0]}"
+            code = ts_code.split('.')[0]
+            bs_code = f"sz.{code}"
+        elif ts_code.endswith('.BJ'):
+            code = ts_code.split('.')[0]
+            bs_code = f"bj.{code}"
         else:
-            raise Exception(f"不支持的股票代码格式: {ts_code}")
+            # 不带后缀，根据代码开头自动判断市场
+            code = ts_code
+            if code.startswith('6'):
+                bs_code = f"sh.{code}"
+            elif code.startswith(('8', '4')):
+                bs_code = f"bj.{code}"
+            else:
+                bs_code = f"sz.{code}"
         
         # 查询行情
         rs = self.baostock.query_history_k_data_plus(

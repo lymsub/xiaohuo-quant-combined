@@ -65,10 +65,44 @@ class ReturnTracker:
         Returns:
             收益跟踪结果
         """
+        from datetime import datetime, time
+        
         today = date.today().strftime('%Y-%m-%d')
+        now = datetime.now()
+        
+        # 根据当前时间和报告类型决定用什么价格
+        price_source = 'realtime'
+        data_source_label = '实时数据'
+        
+        if tracking_time == 'midday':
+            # 午盘报告，检查当前时间
+            current_time = now.time()
+            eleven_thirty = time(11, 30, 0)
+            
+            if current_time < eleven_thirty:
+                # 11:30之前，用实时数据
+                price_source = 'realtime'
+                data_source_label = f'实时数据 ({now.strftime("%H:%M:%S")})'
+            else:
+                # 11:30之后，用11:30的价格
+                price_source = '1130'
+                data_source_label = '11:30收盘数据'
+        elif tracking_time == 'close':
+            # 收盘报告，检查当前时间
+            current_time = now.time()
+            fifteen_hundred = time(15, 0, 0)
+            
+            if current_time < fifteen_hundred:
+                # 15:00之前，用实时数据
+                price_source = 'realtime'
+                data_source_label = f'实时数据 ({now.strftime("%H:%M:%S")})'
+            else:
+                # 15:00之后，用日线数据的收盘价
+                price_source = 'daily_close'
+                data_source_label = '日线收盘价'
         
         # 获取当前持仓和市值
-        portfolio = self.portfolio_manager.list_portfolio(status='holding')
+        portfolio = self.portfolio_manager.list_portfolio(status='holding', price_source=price_source)
         summary = portfolio['summary']
         
         total_value = summary['total_market_value']
@@ -111,7 +145,9 @@ class ReturnTracker:
             "beat_benchmark": daily_return_pct > benchmark_return_pct if benchmark_return_pct is not None else None,
             "attribution": attribution_data,
             "quant_metrics": quant_metrics,
-            "portfolio_summary": summary
+            "portfolio_summary": summary,
+            "data_source": data_source_label,
+            "data_time": now.strftime("%Y-%m-%d %H:%M:%S")
         }
     
     def _calculate_quant_metrics(self, portfolio: Dict[str, Any]) -> Dict[str, Any]:
