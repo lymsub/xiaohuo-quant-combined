@@ -49,7 +49,7 @@ class PortfolioManager:
     
     def _get_today_open_price(self, ts_code: str) -> Optional[float]:
         """
-        获取今日真实开盘价（使用AkShare分时数据接口）
+        获取今日真实开盘价（多数据源自动降级：AkShare → Baostock）
         
         Args:
             ts_code: 股票代码
@@ -57,23 +57,24 @@ class PortfolioManager:
         Returns:
             今日开盘价，如果获取失败则返回None
         """
+        from datetime import date
+        today = date.today().strftime('%Y-%m-%d')
+        
+        # 先转换代码格式
+        code = ts_code
+        if '.' in code:
+            code = code.split('.')[0]
+        
+        # 第一数据源：AkShare
         try:
             import akshare as ak
-            from datetime import date
-            
-            today = date.today().strftime('%Y%m%d')
-            
-            # 先转换代码格式
-            code = ts_code
-            if '.' in code:
-                code = code.split('.')[0]
             
             # 获取分时数据
             df = ak.stock_zh_a_hist_min_em(
                 symbol=code,
                 period="1",
-                start_date=today,
-                end_date=today,
+                start_date=today.replace('-', ''),
+                end_date=today.replace('-', ''),
                 adjust="qfq"
             )
             
@@ -82,8 +83,44 @@ class PortfolioManager:
                 return float(df.iloc[0]['开盘'])
             
         except Exception as e:
-            print(f"⚠️  获取 {ts_code} 今日开盘价失败: {e}")
-            pass
+            print(f"⚠️  AkShare获取 {ts_code} 今日开盘价失败，尝试Baostock: {e}")
+        
+        # 第二数据源：Baostock（稳定备选）
+        try:
+            import baostock as bs
+            import pandas as pd
+            
+            # 转换代码格式为Baostock格式
+            if code.startswith('6'):
+                bs_code = f'sh.{code}'
+            else:
+                bs_code = f'sz.{code}'
+            
+            # 登录Baostock
+            lg = bs.login()
+            if lg.error_code != '0':
+                print(f"⚠️  Baostock登录失败: {lg.error_msg}")
+                return None
+                
+            # 查询日K数据
+            rs = bs.query_history_k_data_plus(bs_code, 
+                'open',
+                start_date=today, end_date=today,
+                frequency='d', adjustflag='3')
+            
+            data_list = []
+            while (rs.error_code == '0') & rs.next():
+                data_list.append(rs.get_row_data())
+            
+            bs.logout()
+            
+            if data_list:
+                open_price = float(data_list[0][0])
+                if open_price > 0:
+                    return open_price
+            
+        except Exception as e:
+            print(f"⚠️  Baostock获取 {ts_code} 今日开盘价失败: {e}")
         
         return None
     
@@ -580,7 +617,7 @@ class PortfolioManager:
             import akshare as ak
             from datetime import date
             
-            today = date.today().strftime('%Y%m%d')
+            today = date.today().strftime('%Y-%m-%d')
             
             # 先转换代码格式，去掉可能的市场后缀
             code = ts_code

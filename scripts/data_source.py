@@ -21,8 +21,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 class DataSourceManager:
     """统一四数据源管理器"""
     
-    # 数据源优先级（实时行情优先新浪/腾讯，历史/基本面优先Tushare）
-    SOURCE_PRIORITY_REALTIME = ['sina', 'tencent', 'akshare', 'tushare']
+    # 数据源优先级
+    # 交易时间（9:30-11:30,13:00-15:00）：实时行情优先AkShare（Tushare120积分无法获取实时行情）
+    # 非交易时间：历史数据优先Tushare
+    SOURCE_PRIORITY_REALTIME_TRADING = ['akshare', 'sina', 'tencent', 'tushare']
+    SOURCE_PRIORITY_REALTIME_CLOSED = ['tushare', 'baostock', 'akshare', 'sina', 'tencent']
     SOURCE_PRIORITY_HISTORY = ['tushare', 'baostock', 'akshare', 'sina', 'tencent']
     
     # 数据源能力
@@ -98,6 +101,26 @@ class DataSourceManager:
         })
         
         self._init_sources()
+    
+    def _is_trading_time(self) -> bool:
+        """
+        判断当前是否是A股交易时间
+        返回：True=交易时间，False=非交易时间/节假日
+        """
+        now = datetime.now()
+        # 判断是否是工作日（周一到周五）
+        if now.weekday() >= 5:  # 5=周六，6=周日
+            return False
+        # 判断时间范围
+        current_time = now.time()
+        morning_start = datetime.strptime('09:30:00', '%H:%M:%S').time()
+        morning_end = datetime.strptime('11:30:00', '%H:%M:%S').time()
+        afternoon_start = datetime.strptime('13:00:00', '%H:%M:%S').time()
+        afternoon_end = datetime.strptime('15:00:00', '%H:%M:%S').time()
+        # 上午交易时段 或 下午交易时段
+        if (morning_start <= current_time <= morning_end) or (afternoon_start <= current_time <= afternoon_end):
+            return True
+        return False
     
     def _init_sources(self):
         """初始化所有数据源"""
@@ -290,7 +313,14 @@ class DataSourceManager:
             raise Exception(f"指定的数据源 {specified_source} 不可用或不支持 {capability}")
         
         # 自动选择数据源
-        priority = self.SOURCE_PRIORITY_REALTIME if is_realtime else self.SOURCE_PRIORITY_HISTORY
+        if is_realtime:
+            # 实时行情根据交易时间选择优先级
+            if self._is_trading_time():
+                priority = self.SOURCE_PRIORITY_REALTIME_TRADING
+            else:
+                priority = self.SOURCE_PRIORITY_REALTIME_CLOSED
+        else:
+            priority = self.SOURCE_PRIORITY_HISTORY
         order = []
         
         for src in priority:
