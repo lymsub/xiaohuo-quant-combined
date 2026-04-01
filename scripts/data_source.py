@@ -23,7 +23,7 @@ class DataSourceManager:
     
     # 数据源优先级（实时行情优先新浪/腾讯，历史/基本面优先Tushare）
     SOURCE_PRIORITY_REALTIME = ['sina', 'tencent', 'akshare', 'tushare']
-    SOURCE_PRIORITY_HISTORY = ['tushare', 'akshare', 'sina', 'tencent']
+    SOURCE_PRIORITY_HISTORY = ['tushare', 'baostock', 'akshare', 'sina', 'tencent']
     
     # 数据源能力
     SOURCE_CAPABILITIES = {
@@ -32,6 +32,13 @@ class DataSourceManager:
             'daily_quotes': True,
             'realtime_quotes': True,  # 需要高级权限
             'financial_indicators': True,  # 需要高级权限
+            'stock_basic': True,
+        },
+        'baostock': {
+            'stock_list': True,
+            'daily_quotes': True,
+            'realtime_quotes': False,  # Baostock 无实时行情接口
+            'financial_indicators': True,
             'stock_basic': True,
         },
         'akshare': {
@@ -80,11 +87,14 @@ class DataSourceManager:
         self.akshare_available = False
         self.sina_available = True  # 新浪无需初始化，默认可用
         self.tencent_available = True  # 腾讯无需初始化，默认可用
+        self.baostock_available = False  # Baostock 初始化后可用
         self.tushare_pro = None
         self.akshare = None
+        self.baostock = None
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://finance.sina.com.cn/'
         })
         
         self._init_sources()
@@ -112,6 +122,20 @@ class DataSourceManager:
             print(f"✅ AkShare 数据源已初始化")
         except Exception as e:
             print(f"⚠️  AkShare 初始化失败: {e}")
+        
+        # 尝试初始化 Baostock
+        try:
+            import baostock as bs
+            self.baostock = bs
+            # 登录Baostock（免费无需账号）
+            lg = bs.login()
+            if lg.error_code == '0':
+                self.baostock_available = True
+                print(f"✅ Baostock 数据源已初始化")
+            else:
+                print(f"⚠️  Baostock 登录失败: {lg.error_msg}")
+        except Exception as e:
+            print(f"⚠️  Baostock 初始化失败: {e}")
         
         # 新浪、腾讯无需初始化，默认可用
         print(f"✅ 新浪财经 数据源已就绪")
@@ -216,6 +240,9 @@ class DataSourceManager:
                 if src == 'tushare':
                     df = self._get_daily_quotes_tushare(ts_code, start_date, end_date)
                     return df, 'tushare'
+                elif src == 'baostock':
+                    df = self._get_daily_quotes_baostock(ts_code, start_date, end_date)
+                    return df, 'baostock'
                 elif src == 'akshare':
                     df = self._get_daily_quotes_akshare(ts_code, start_date, end_date)
                     return df, 'akshare'
@@ -268,6 +295,8 @@ class DataSourceManager:
         for src in priority:
             available = False
             if src == 'tushare' and self.tushare_available:
+                available = True
+            elif src == 'baostock' and self.baostock_available:
                 available = True
             elif src == 'akshare' and self.akshare_available:
                 available = True
@@ -486,6 +515,51 @@ class DataSourceManager:
 # ============================================
 # 便捷函数
 # ============================================
+
+    def _get_daily_quotes_baostock(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """从 Baostock 获取日线行情（完全免费无限制）"""
+        if not self.baostock_available:
+            raise Exception("Baostock 数据源不可用")
+        
+        # 转换日期格式
+        start_dt = datetime.strptime(start_date, '%Y%m%d')
+        end_dt = datetime.strptime(end_date, '%Y%m%d')
+        start_str = start_dt.strftime('%Y-%m-%d')
+        end_str = end_dt.strftime('%Y-%m-%d')
+        
+        # Baostock 代码格式转换：600xxx.SH -> sh.600xxx；000xxx.SZ -> sz.000xxx
+        if ts_code.endswith('.SH'):
+            bs_code = f"sh.{ts_code.split('.')[0]}"
+        elif ts_code.endswith('.SZ'):
+            bs_code = f"sz.{ts_code.split('.')[0]}"
+        else:
+            raise Exception(f"不支持的股票代码格式: {ts_code}")
+        
+        # 查询行情
+        rs = self.baostock.query_history_k_data_plus(
+            bs_code,
+            "date,open,high,low,close,volume,amount",
+            start_date=start_str,
+            end_date=end_str,
+            frequency="d",
+            adjustflag="3"  # 3表示前复权
+        )
+        
+        # 转换为DataFrame
+        data_list = []
+        while rs.error_code == '0' and rs.next():
+            row = rs.get_row_data()
+            data_list.append(row)
+        
+        df = pd.DataFrame(data_list, columns=['trade_date', 'open', 'high', 'low', 'close', 'volume', 'amount'])
+        # 转换数据类型
+        for col in ['open', 'high', 'low', 'close', 'volume', 'amount']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        df['trade_date'] = pd.to_datetime(df['trade_date'])
+        df['ts_code'] = ts_code
+        
+        return df[['trade_date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'ts_code']]
 
 def get_data_manager(tushare_token: Optional[str] = None, 
                     enable_fallback: bool = True,

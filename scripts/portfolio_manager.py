@@ -231,6 +231,8 @@ class PortfolioManager:
         total_cost = 0
         total_market_value = 0
         
+        from datetime import date, timedelta
+        
         for pos in positions:
             latest_price = self._get_latest_price(pos['ts_code'])
             
@@ -239,6 +241,23 @@ class PortfolioManager:
                 market_value = latest_price * pos['quantity']
                 profit = market_value - cost
                 profit_pct = (profit / cost) * 100 if cost > 0 else 0
+                
+                # 计算当日涨跌幅
+                daily_change_pct = 0.0
+                try:
+                    # 获取前一交易日收盘价
+                    end_date = date.today()
+                    start_date = end_date - timedelta(days=5)
+                    start_str = start_date.strftime('%Y%m%d')
+                    end_str = end_date.strftime('%Y%m%d')
+                    
+                    df, _ = self.data_source.get_daily_quotes(pos['ts_code'], start_str, end_str)
+                    if df is not None and len(df) >= 2:
+                        prev_close = df.iloc[-2]['close']
+                        if prev_close > 0:
+                            daily_change_pct = ((latest_price - prev_close) / prev_close) * 100
+                except Exception as e:
+                    pass
                 
                 total_cost += cost
                 total_market_value += market_value
@@ -249,6 +268,7 @@ class PortfolioManager:
                 enriched_pos['cost'] = cost
                 enriched_pos['profit'] = profit
                 enriched_pos['profit_pct'] = profit_pct
+                enriched_pos['daily_change_pct'] = round(daily_change_pct, 2)
                 enriched_pos['profit_status'] = 'profit' if profit >= 0 else 'loss'
                 enriched_positions.append(enriched_pos)
             else:

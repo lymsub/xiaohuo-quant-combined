@@ -93,15 +93,15 @@ class StockRecommender:
         scores = {}
         
         # 1. 涨跌幅评分（0-100分）
-        pct_change = self._safe_float(stock.get('涨跌幅', 0))
+        pct_change = self._safe_float(stock.get('change_pct', 0))
         scores['pct_change'] = self._score_pct_change(pct_change)
         
         # 2. 成交量评分（0-100分）
-        volume = self._safe_float(stock.get('成交量', 0))
+        volume = self._safe_float(stock.get('volume', 0))
         scores['volume'] = self._score_volume(volume)
         
         # 3. 成交额评分（0-100分）
-        amount = self._safe_float(stock.get('成交额', 0))
+        amount = self._safe_float(stock.get('amount', 0) if 'amount' in stock else 0)
         scores['amount'] = self._score_amount(amount)
         
         # 4. 技术指标评分（0-100分）
@@ -330,12 +330,12 @@ class StockRecommender:
             
             scored_stocks.append({
                 '排名': len(scored_stocks) + 1,
-                '股票代码': stock.get('代码', ''),
-                '股票名称': stock.get('名称', ''),
-                '最新价': stock.get('最新价', 0),
-                '涨跌幅': stock.get('涨跌幅', 0),
-                '成交量': stock.get('成交量', 0),
-                '成交额': stock.get('成交额', 0),
+                '股票代码': stock.get('code', ''),
+                '股票名称': stock.get('name', ''),
+                '最新价': stock.get('price', 0),
+                '涨跌幅': stock.get('change_pct', 0),
+                '成交量': stock.get('volume', 0),
+                '成交额': stock.get('amount', 0) if 'amount' in stock else 0,
                 '综合评分': round(total_score, 2),
                 '各维度评分': {
                     '涨跌幅': round(dimension_scores['pct_change'], 2),
@@ -408,7 +408,7 @@ def print_recommendations(recommendations: List[Dict[str, Any]]):
     # 打印每只股票
     for stock in recommendations:
         pct_str = f"{stock['涨跌幅']:.2f}%"
-        volume_str = f"{stock['成交量']:,.0f}"
+        volume_str = stock['成交量'] if stock['成交量'] != '-' else '0'
         amount_str = f"{stock['成交额']:,.0f}"
         
         # 根据涨跌幅添加颜色标记
