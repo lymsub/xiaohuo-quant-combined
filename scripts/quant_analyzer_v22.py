@@ -714,7 +714,7 @@ class QuantAnalyzer:
                 "最新价": round(format_value(latest['close']), 2),
                 "涨跌额": round(format_value(latest['close'] - prev['close']), 2),
                 "涨跌幅": round(format_value((latest['close'] - prev['close']) / prev['close'] * 100), 2),
-                "成交量": int(format_value(latest['vol'])) if 'vol' in latest else None,
+                "成交量": int(format_value(latest['vol'])) if 'vol' in latest and latest['vol'] is not None else 0,
                 "成交额": round(format_value(latest['amount']) / 10000, 2) if 'amount' in latest else None
             },
             

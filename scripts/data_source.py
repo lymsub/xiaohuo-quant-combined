@@ -180,6 +180,7 @@ class DataSourceManager:
     def get_realtime_price(self, ts_code: str) -> Tuple[float, str]:
         """
         获取股票实时最新价格（优先使用新浪/腾讯实时接口，成功率99.9%）
+        【强制规则】所有接口失败时抛出异常，禁止返回任何模拟值、默认值
         
         Args:
             ts_code: 股票代码，如600519.SH、300750.SZ
@@ -215,6 +216,7 @@ class DataSourceManager:
                         continue
                     print(f"⚠️  {src} 获取 {ts_code} 实时价格失败: {e}")
         
+        # 【强制规则】所有数据源失败，抛出异常，不返回任何默认值
         raise Exception(f"所有数据源都无法获取 {ts_code} 的实时价格")
     
     def get_stock_list(self, source: Optional[str] = None) -> Tuple[pd.DataFrame, str]:

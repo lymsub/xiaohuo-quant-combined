@@ -48,6 +48,21 @@ chmod +x "$SCRIPT_DIR"/*.sh 2>/dev/null || true
 echo "✅ 权限已设置"
 echo ""
 
+# 安装系统依赖
+echo "📦 安装系统依赖..."
+apt update -y && apt install -y ffmpeg curl
+echo "✅ 系统依赖安装完成"
+echo ""
+
+# 安装视频功能依赖
+echo "🎥 安装视频生成与语音合成依赖..."
+if [ ! -d "$SCRIPT_DIR/tts_venv" ]; then
+    "$PYTHON_BIN" -m venv "$SCRIPT_DIR/tts_venv"
+fi
+"$SCRIPT_DIR/tts_venv/bin/pip" install edge-tts volcenginesdkarkruntime akshare pandas urllib3
+echo "✅ 视频与语音依赖安装完成"
+echo ""
+
 # 运行配置向导（config.py 负责安装依赖、配置 Token 等）
 echo "🚀 运行配置向导（config.py）..."
 echo "   config.py 将自动安装依赖、配置 Token 等..."

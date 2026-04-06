@@ -310,9 +310,9 @@ class StockRecommender:
             print("返回示例数据...")
             return self._get_example_recommendations(n)
         
-        # 获取今日涨幅榜
-        print("📊 正在获取今日涨幅榜...")
-        df = get_today_gainers(n=50)  # 先获取50只，再从中筛选
+        # 获取今日涨幅榜（自动复用缓存，无需重复拉取）
+        print("📊 正在获取今日涨幅榜（优先读取缓存）...")
+        df = get_today_gainers(n=50)  # 先获取50只，再从中筛选，自动使用缓存
         
         if df is None or df.empty:
             print("⚠️  获取涨幅榜失败，返回示例数据...")

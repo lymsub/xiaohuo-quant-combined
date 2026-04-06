@@ -49,7 +49,8 @@ class PortfolioManager:
     
     def _get_today_open_price(self, ts_code: str) -> Optional[float]:
         """
-        获取今日真实开盘价（多数据源自动降级：AkShare → Baostock）
+        获取今日真实开盘价（多数据源自动降级：Baostock → AkShare）
+        优先用Baostock日K数据，非交易时段也能正常获取，不需要实时行情接口
         
         Args:
             ts_code: 股票代码
@@ -65,7 +66,43 @@ class PortfolioManager:
         if '.' in code:
             code = code.split('.')[0]
         
-        # 第一数据源：AkShare
+        # 第一数据源：Baostock日K数据（最稳定，非交易时段也可用）
+        try:
+            import baostock as bs
+            import pandas as pd
+            
+            # 转换代码格式为Baostock格式
+            if code.startswith('6'):
+                bs_code = f'sh.{code}'
+            else:
+                bs_code = f'sz.{code}'
+            
+            # 登录Baostock
+            lg = bs.login()
+            if lg.error_code != '0':
+                print(f"⚠️  Baostock登录失败: {lg.error_msg}")
+            else:
+                # 查询日K数据
+                rs = bs.query_history_k_data_plus(bs_code, 
+                    'open',
+                    start_date=today, end_date=today,
+                    frequency='d', adjustflag='3')
+                
+                data_list = []
+                while (rs.error_code == '0') & rs.next():
+                    data_list.append(rs.get_row_data())
+                
+                bs.logout()
+                
+                if data_list:
+                    open_price = float(data_list[0][0])
+                    if open_price > 0:
+                        return open_price
+            
+        except Exception as e:
+            print(f"⚠️  Baostock获取 {ts_code} 今日开盘价失败，尝试AkShare: {e}")
+        
+        # 第二数据源：AkShare分时数据（仅限交易时段）
         try:
             import akshare as ak
             
@@ -83,44 +120,7 @@ class PortfolioManager:
                 return float(df.iloc[0]['开盘'])
             
         except Exception as e:
-            print(f"⚠️  AkShare获取 {ts_code} 今日开盘价失败，尝试Baostock: {e}")
-        
-        # 第二数据源：Baostock（稳定备选）
-        try:
-            import baostock as bs
-            import pandas as pd
-            
-            # 转换代码格式为Baostock格式
-            if code.startswith('6'):
-                bs_code = f'sh.{code}'
-            else:
-                bs_code = f'sz.{code}'
-            
-            # 登录Baostock
-            lg = bs.login()
-            if lg.error_code != '0':
-                print(f"⚠️  Baostock登录失败: {lg.error_msg}")
-                return None
-                
-            # 查询日K数据
-            rs = bs.query_history_k_data_plus(bs_code, 
-                'open',
-                start_date=today, end_date=today,
-                frequency='d', adjustflag='3')
-            
-            data_list = []
-            while (rs.error_code == '0') & rs.next():
-                data_list.append(rs.get_row_data())
-            
-            bs.logout()
-            
-            if data_list:
-                open_price = float(data_list[0][0])
-                if open_price > 0:
-                    return open_price
-            
-        except Exception as e:
-            print(f"⚠️  Baostock获取 {ts_code} 今日开盘价失败: {e}")
+            print(f"⚠️  AkShare获取 {ts_code} 今日开盘价失败: {e}")
         
         return None
     
@@ -450,10 +450,41 @@ class PortfolioManager:
         Returns:
             股票名称
         """
-        # 先从数据库查
-        stock_basic = self.db.get_stock_basic(ts_code)
-        if not stock_basic.empty:
-            return stock_basic.iloc[0]['name']
+        # 先处理代码格式，去掉后缀
+        code = ts_code
+        if '.' in code:
+            code = code.split('.')[0]
+        
+        # 优先用AkShare实时获取股票名称（最准确）
+        try:
+            import akshare as ak
+            # 方法1：个股信息接口
+            df = ak.stock_individual_info_em(symbol=code)
+            if df is not None and not df.empty:
+                name_row = df[df['item'] == '股票名称']
+                if not name_row.empty:
+                    return name_row.iloc[0]['value']
+        except Exception:
+            pass
+        
+        try:
+            import akshare as ak
+            # 方法2：行情接口
+            df = ak.stock_zh_a_spot_em()
+            if df is not None and not df.empty:
+                match = df[df['代码'] == code]
+                if not match.empty:
+                    return match.iloc[0]['名称']
+        except Exception:
+            pass
+        
+        # 再从数据库查
+        try:
+            stock_basic = self.db.get_stock_basic(ts_code)
+            if not stock_basic.empty:
+                return stock_basic.iloc[0]['name']
+        except Exception:
+            pass
         
         # 从数据源获取
         try:

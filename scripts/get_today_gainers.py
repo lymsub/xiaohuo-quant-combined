@@ -3,13 +3,20 @@
 用新浪财经接口获取沪深300涨幅榜（稳定版）
 新浪接口完全免费无限制，速度快，稳定性高，彻底解决网络连接问题
 修复非交易时段涨跌幅显示为0的bug，自动降级到日线接口获取数据
+新增缓存机制：交易时段缓存10分钟，非交易时段读取15:10预拉取缓存
 """
+
+import os
+import json
+import time
+from pathlib import Path
 
 import sys
 import re
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -21,6 +28,53 @@ except ImportError as e:
 
 # 导入统一数据源管理器（用于非交易时段日线数据查询）
 from data_source import get_data_manager
+
+# 缓存配置
+CACHE_DIR = Path(__file__).parent / "cache"
+CACHE_DIR.mkdir(exist_ok=True)
+CACHE_EXPIRE_SECONDS = 10 * 60  # 交易时段缓存10分钟
+
+
+def _get_cache_path(date_str: str = None) -> Path:
+    """获取缓存文件路径"""
+    if date_str is None:
+        date_str = time.strftime("%Y%m%d")
+    return CACHE_DIR / f"gainers_{date_str}.json"
+
+
+def _load_cache() -> Optional[pd.DataFrame]:
+    """加载有效缓存"""
+    cache_path = _get_cache_path()
+    if not cache_path.exists():
+        return None
+    
+    # 检查缓存是否过期
+    mtime = cache_path.stat().st_mtime
+    if time.time() - mtime > CACHE_EXPIRE_SECONDS:
+        # 交易时段缓存过期，非交易时段缓存永久有效
+        now = datetime.now()
+        trading_hours = (now.hour >= 9 and now.hour < 15) and not (now.hour == 11 and now.minute > 30)
+        if not trading_hours:
+            # 非交易时段，缓存不过期
+            pass
+        else:
+            return None
+    
+    # 读取缓存
+    try:
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return pd.DataFrame(data)
+    except:
+        return None
+
+
+def _save_cache(df: pd.DataFrame):
+    """保存数据到缓存"""
+    cache_path = _get_cache_path()
+    data = df.to_dict('records')
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def is_trading_day() -> tuple[bool, str]:
@@ -52,6 +106,27 @@ def get_today_gainers(n: int = 50, count: int = 50) -> pd.DataFrame:
         DataFrame格式的涨幅榜，按涨跌幅从高到低排序
     """
     count = n if n != 50 else count
+    
+    # 第一步：检查缓存
+    cached_df = _load_cache()
+    if cached_df is not None:
+        return cached_df.head(count)
+    
+    # 第二步：判断时段
+    now = datetime.now()
+    trading_hours = (now.hour >= 9 and now.hour < 15) and not (now.hour == 11 and now.minute > 30)
+    # 3:00-3:10空档期按交易时段处理
+    if now.hour == 15 and now.minute < 10:
+        trading_hours = True
+    
+    # 非交易时段优先读取15:10预缓存
+    if not trading_hours:
+        pre_cache_path = _get_cache_path()
+        if pre_cache_path.exists():
+            df = pd.read_json(pre_cache_path)
+            return df.head(count)
+    
+    # 第三步：没有缓存，实时拉取
     
     # 沪深300成分股列表（2026年最新）
     stock_list = [
@@ -214,7 +289,12 @@ def get_today_gainers(n: int = 50, count: int = 50) -> pd.DataFrame:
     
     # 按涨跌幅从高到低排序
     stock_data = sorted(stock_data, key=lambda x: x['change_pct'], reverse=True)
-    return pd.DataFrame(stock_data[:count])
+    df = pd.DataFrame(stock_data[:count])
+    
+    # 保存到缓存
+    _save_cache(df)
+    
+    return df
 
 
 def main():
