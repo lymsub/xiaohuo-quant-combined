@@ -43,6 +43,31 @@ def upload_to_cos(local_path, remote_name):
         print(f"上传失败：{e}")
         return None
 
+def upload_to_feishu_drive(local_path, file_name):
+    """上传文件到飞书云盘，返回飞书内链"""
+    try:
+        import json
+        # 调用feishu_drive_file上传接口
+        cmd = f'openclaw tool feishu_drive_file --action upload --file_path "{local_path}" --type file'
+        result = os.popen(cmd).read()
+        # 解析返回结果
+        try:
+            result_json = json.loads(result)
+            if "file_token" in result_json:
+                return f"https://bytedance.feishu.cn/file/{result_json['file_token']}"
+        except:
+            pass
+        # 如果解析失败，尝试从输出中提取链接
+        if "https://bytedance.feishu.cn/file/" in result:
+            for line in result.split("\n"):
+                if "https://bytedance.feishu.cn/file/" in line:
+                    return line.strip()
+        print(f"飞书云盘上传失败：{result}")
+        return None
+    except Exception as e:
+        print(f"飞书云盘上传异常：{e}")
+        return None
+
 def pre_generate_background():
     """预生成12秒背景视频，保存到缓存，供后续合成使用"""
     print("="*80)
@@ -90,19 +115,25 @@ def main():
     today_str = datetime.datetime.now().strftime("%Y%m%d")
     today_save_dir = os.path.join(CONFIG["local_save_dir"], today_str)
     exist_final_video = os.path.join(today_save_dir, f"final_report_{today_str}.mp4")
+    
+    # 校验已存在视频是否为有效完整视频（时长≥30秒）
+    valid_exist = False
     if not force_regenerate and os.path.exists(exist_final_video):
-        print("="*80)
-        print("✅ 今日早报已生成，直接返回已存在的视频")
-        print("="*80)
-        print(f"本地路径：{exist_final_video}")
-        # 检查是否有公网链接缓存
-        url_cache = os.path.join(today_save_dir, "public_url.txt")
-        if os.path.exists(url_cache):
-            with open(url_cache, "r", encoding="utf-8") as f:
-                public_url = f.read().strip()
-                print(f"公网链接：{public_url}")
-        print("\n🎉 今日早报已生成，无需重复生成！")
-        print("💡 如需强制重新生成，请添加 --force 参数")
+        # 获取视频时长
+        try:
+            import subprocess
+            result = subprocess.run(f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {exist_final_video}", shell=True, capture_output=True, text=True)
+            duration = float(result.stdout.strip())
+            if duration >= 30:
+                valid_exist = True
+            else:
+                print(f"⚠️ 已存在视频时长仅{duration}秒，为无效模板，强制重新生成...")
+        except:
+            print("⚠️ 无法校验已存在视频时长，强制重新生成...")
+    
+    if valid_exist:
+        print(f"VIDEO_PATH={exist_final_video}")
+        print("\n✅ 早报视频生成完成！")
         return
     
     print("="*80)
@@ -129,8 +160,11 @@ def main():
             backup_video_path = os.path.join(today_save_dir, f"background_{today_str}.mp4")
             os.system(f"cp {video_path} {backup_video_path}")
         else:
-            video_path = CONFIG["default_background"]
-            print(f"使用默认背景视频：{video_path}")
+            # 禁止正常生成流程使用默认模板，必须生成动态背景
+            print("⚠️ 配置generate_new_background为False，强制生成动态背景...")
+            video_path = get_cached_background()
+            backup_video_path = os.path.join(today_save_dir, f"background_{today_str}.mp4")
+            os.system(f"cp {video_path} {backup_video_path}")
         
         # Step 3: 生成语音
         print("\n🎤 Step 3/5：生成语音播报...")
@@ -150,41 +184,13 @@ def main():
         # Step 5: 上传到公网或发送到飞书
         print("\n☁️ Step 5/5：发布早报视频...")
         public_url = None
-        if CONFIG["upload_to_cos"] and CONFIG["cos_path"]:
-            remote_name = f"morning_report_{today_str}.mp4"
-            public_url = upload_to_cos(backup_final_path, remote_name)
-            if public_url:
-                print(f"\n✅ 全流程执行完成！公网访问链接：{public_url}")
-                # 缓存公网链接，方便后续复用
-                url_cache = os.path.join(today_save_dir, "public_url.txt")
-                with open(url_cache, "w", encoding="utf-8") as f:
-                    f.write(public_url)
+        feishu_url = None
         
-        # 如果没有公网链接，且开启飞书直接发送
-        if not public_url and CONFIG["feishu_send_video"] and FEISHU_CONFIG["webhook"]:
-            print("📤 正在发送视频到飞书群...")
-            # 调用飞书webhook发送视频
-            try:
-                import requests
-                files = {'video': open(backup_final_path, 'rb')}
-                response = requests.post(FEISHU_CONFIG["webhook"], files=files)
-                if response.status_code == 200:
-                    print("✅ 视频已发送到飞书群")
-                else:
-                    print(f"⚠️ 发送到飞书失败：{response.text}")
-            except Exception as e:
-                print(f"⚠️ 发送到飞书失败：{e}")
-        
-        # 最终输出结果
-        if public_url:
-            print(f"\n🎉 今日早报生成完成！公网链接：{public_url}")
-        else:
-            print(f"\n🎉 今日早报生成完成！本地路径：{backup_final_path}")
-            if CONFIG["feishu_send_video"] and FEISHU_CONFIG["webhook"]:
-                print("📩 视频已自动发送到配置的飞书群")
-        
-        print("\n🎉 今日早报生成完成！")
-        return backup_final_path, public_url if CONFIG["upload_to_cos"] else backup_final_path
+        # 先上传到公网COS
+        # 仅输出本地视频路径，上传逻辑交给OpenClaw Skill层处理
+        print(f"VIDEO_PATH={backup_final_path}")
+        print("\n✅ 早报视频生成完成！")
+        return backup_final_path
         
     except Exception as e:
         print(f"\n❌ 流程执行失败：{e}")

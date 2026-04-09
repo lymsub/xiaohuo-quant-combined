@@ -130,10 +130,18 @@ def compose_video(video_path, audio_path, output_path=None, target_duration=None
     print(f"视频合成成功，路径：{output_path}")
     return output_path
 
+import argparse
+
 if __name__ == "__main__":
-    # 测试功能
-    test_text = "这是测试语音，今天天气很好，适合投资。"
-    audio_path, duration = text_to_speech(test_text)
-    video_path = "/root/.openclaw/workspace/full_cn_morning.mp4"
-    final_path = compose_video(video_path, audio_path)
+    parser = argparse.ArgumentParser(description="TTS语音合成与视频合成工具")
+    parser.add_argument("--text", type=str, required=True, help="要合成的文本内容")
+    parser.add_argument("--video", type=str, required=True, help="背景视频路径")
+    parser.add_argument("--output", type=str, help="输出视频路径（可选）")
+    parser.add_argument("--duration", type=float, help="目标视频时长（可选，默认使用音频时长）")
+    args = parser.parse_args()
+    
+    # 生成语音
+    audio_path, duration = text_to_speech(args.text)
+    # 合成视频
+    final_path = compose_video(args.video, audio_path, args.output, args.duration)
     print(f"最终视频路径：{final_path}")

@@ -1,4 +1,4 @@
-# 🔥 火箭量化（xiaohuo-quant-combined）强制规则
+# 🔥 高客秘书（xiaohuo-quant-combined）强制规则
 ## 【永久固化，禁止任何修改/违反】
 ---
 ### 📊 数据真实性规则（最高优先级）

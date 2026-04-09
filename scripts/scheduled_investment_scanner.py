@@ -149,7 +149,7 @@ def format_report(result: Dict[str, Any]) -> str:
     """
     if not result['success']:
         return f"""
-🔥 火箭量化定时投资机会扫描 - {datetime.now().strftime('%Y-%m-%d %H:%M')}
+🔥 高客秘书定时投资机会扫描 - {datetime.now().strftime('%Y-%m-%d %H:%M')}
 ====================================================================================================
 ⚠️ 扫描失败：{result['message']}
 ====================================================================================================
@@ -160,7 +160,7 @@ def format_report(result: Dict[str, Any]) -> str:
     ai_analysis = result['ai_analysis']
     
     output = []
-    output.append(f"🔥 火箭量化定时投资机会扫描 - {scan_time}")
+    output.append(f"🔥 高客秘书定时投资机会扫描 - {scan_time}")
     output.append("=" * 100)
     output.append("")
     

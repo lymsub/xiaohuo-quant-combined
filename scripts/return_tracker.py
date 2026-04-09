@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-火箭量化 - 收益跟踪与归因分析模块
+高客秘书 - 收益跟踪与归因分析模块
 每日午盘、收盘后自动跟踪收益，进行归因分析
 
 【强制规则 - 永久固化，禁止修改】
@@ -429,7 +429,7 @@ def format_return_report(tracking_result: Dict[str, Any]) -> str:
     time_label = "午盘" if tracking_result['tracking_time'] == 'midday' else "收盘"
     status_icon = "🟢" if tracking_result['daily_return_pct'] >= 0 else "🔴"
     
-    output.append(f"📈 火箭量化 - {tracking_result['date']} {time_label}收益报告")
+    output.append(f"📈 高客秘书 - {tracking_result['date']} {time_label}收益报告")
     output.append("=" * 80)
     
     # 收益概览
@@ -509,7 +509,7 @@ def get_return_tracker() -> ReturnTracker:
         volatility = quant_metrics.get("volatility", "待补充")
         
         # 生成报告
-        report = f"""### 🔥 火箭量化日度投资报告（真实专业版）- {date}
+        report = f"""### 🔥 高客秘书日度投资报告（真实专业版）- {date}
 ---
 #### 📈 今日市场真实全景
 | 指数 | 收盘价 | 涨跌幅 | 成交额 |

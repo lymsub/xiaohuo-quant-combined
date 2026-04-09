@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-火箭量化 - 今日最佳股票推荐核心算法
+高客秘书 - 今日最佳股票推荐核心算法
 综合多维度评分，推荐今日最佳股票
 
 评分维度：
@@ -47,19 +47,20 @@ def _check_first_run() -> bool:
 
 
 # 检查是否是第一次运行
-if _check_first_run():
-    print("\n" + "="*80)
-    print(" " * 20 + "🚀 检测到首次使用，正在运行安装向导...")
-    print("="*80)
-    SetupWizard.run()
-    print("\n" + "="*80)
-    print(" " * 25 + "✅ 安装配置完成！")
-    print("="*80)
+# 跳过首次运行检查，已手动配置完成
+# if _check_first_run():
+#     print("\n" + "="*80)
+#     print(" " * 20 + "🚀 检测到首次使用，正在运行安装向导...")
+#     print("="*80)
+#     SetupWizard.run()
+#     print("\n" + "="*80)
+#     print(" " * 25 + "✅ 安装配置完成！")
+#     print("="*80)
     print("\n现在开始推荐股票...\n")
 
-# 确保依赖已安装
-if not Config.ensure_dependencies():
-    sys.exit(1)
+# 确保依赖已安装（已注释，修复Config.ensure_dependencies不存在问题）
+# if not Config.ensure_dependencies():
+#     sys.exit(1)
 
 # 现在可以安全导入了
 import pandas as pd
@@ -446,7 +447,7 @@ def save_recommendations(recommendations: List[Dict[str, Any]], output_file: str
 
 def main():
     parser = argparse.ArgumentParser(
-        description='火箭量化 - 今日最佳股票推荐',
+        description='高客秘书 - 今日最佳股票推荐',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:

@@ -111,7 +111,7 @@ def generate_report():
     
     # 构建报告内容
     report_lines = [
-        f"🔥 火箭量化 {today} 专业投资早报",
+        f"🔥 高客秘书 {today} 专业投资早报",
         f"各位投资者早上好，今天是{today}{weekday}，欢迎收看今日专业量化投资早报。",
         "",
         "📊 昨日市场复盘",

@@ -51,20 +51,20 @@ def _check_first_run() -> bool:
     return all_missing
 
 
-# 检查是否是第一次运行
-if _check_first_run():
-    print("\n" + "="*80)
-    print(" " * 20 + "🚀 检测到首次使用，正在运行安装向导...")
-    print("="*80)
-    SetupWizard.run()
-    print("\n" + "="*80)
-    print(" " * 25 + "✅ 安装配置完成！")
-    print("="*80)
-    print("\n现在开始分析股票...\n")
+# 检查是否是第一次运行（已注释，修复SetupWizard.run不存在问题）
+# if _check_first_run():
+#     print("\n" + "="*80)
+#     print(" " * 20 + "🚀 检测到首次使用，正在运行安装向导...")
+#     print("="*80)
+#     SetupWizard.run()
+#     print("\n" + "="*80)
+#     print(" " * 25 + "✅ 安装配置完成！")
+#     print("="*80)
+#     print("\n现在开始分析股票...\n")
 
-# 确保依赖已安装
-if not Config.ensure_dependencies():
-    sys.exit(1)
+# 确保依赖已安装（已注释，修复Config.ensure_dependencies不存在问题）
+# if not Config.ensure_dependencies():
+#     sys.exit(1)
 
 # 现在可以安全导入了
 import pandas as pd
@@ -811,19 +811,10 @@ def main():
     
     args = parser.parse_args()
     
-    # 获取token
-    token = args.token or Config.get_token()
-    use_tushare = True
-    
-    if not token:
-        # 没有找到 token，交互式询问用户
-        token, use_tushare = _prompt_for_token()
-    
-    # 设置首选数据源
-    preferred_source = args.preferred_source
-    if not use_tushare and preferred_source == 'tushare':
-        preferred_source = 'akshare'
-        print(f"🔄 已自动切换首选数据源为：AkShare")
+    # 强制使用AkShare数据源，不需要token
+    use_tushare = False
+    preferred_source = 'akshare'
+    print(f"🔄 已自动切换首选数据源为：AkShare")
     
     # 标准化股票代码
     ts_code = args.code
@@ -840,7 +831,7 @@ def main():
     
     try:
         # 如果没有 token，只传 None，让数据源管理器自动处理
-        actual_token = token if token else None
+        actual_token = None
         
         with QuantAnalyzer(
             actual_token, 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-火箭量化 - 数据同步脚本
+高客秘书 - 数据同步脚本
 定时从 Tushare 获取行情和基本面数据并存储到 SQLite 数据库
 """
 
@@ -261,7 +261,7 @@ def _load_token_from_store() -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='火箭量化 - 数据同步工具',
+        description='高客秘书 - 数据同步工具',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:

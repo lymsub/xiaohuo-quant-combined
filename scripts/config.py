@@ -5,6 +5,7 @@
 """
 import os
 import json
+from pathlib import Path
 from typing import Dict, Any
 
 # 基础配置
@@ -120,6 +121,11 @@ def load_custom_config(config_path: str = "custom_config.json") -> Dict[str, Any
 # 兼容旧版本导入
 class Config:
     """兼容旧版本配置类"""
+    CONFIG_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+    DATA_DIR = Path(BASE_CONFIG["data_dir"])
+    TOKEN_FILE = CONFIG_DIR / "tushare.token"
+    TOKEN_ENV_FILE = CONFIG_DIR / ".env"
+    DB_FILE = CONFIG_DIR / "quant_data.db"
     pass
 
 class SetupWizard:

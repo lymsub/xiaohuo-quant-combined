@@ -35,7 +35,7 @@ def main():
     volatility = quant_metrics.get('volatility', '待补充')
     
     # 生成报告
-    report = f"""### 🔥 火箭量化日度投资报告（真实专业版）- {date}
+    report = f"""### 🔥 高客秘书日度投资报告（真实专业版）- {date}
 ---
 #### 📈 今日市场真实全景
 | 指数 | 收盘价 | 涨跌幅 | 成交额 |

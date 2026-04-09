@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-火箭量化 - 投资报告生成模块
+高客秘书 - 投资报告生成模块
 结合收益跟踪、归因分析、财经资讯，生成当日投资报告
 """
 
@@ -345,7 +345,7 @@ def format_investment_report(report_content: Dict[str, Any]) -> str:
     
     report_type = "午间" if report_content['report_type'] == 'midday' else "每日"
     
-    output.append(f"📄 火箭量化 - {report_content['date']} {report_type}投资报告")
+    output.append(f"📄 高客秘书 - {report_content['date']} {report_type}投资报告")
     output.append("=" * 100)
     
     # 1. 收益概览

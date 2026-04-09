@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-火箭量化整合版 v2.6 - 主入口程序
+高客秘书整合版 v2.6 - 主入口程序
 整合：股票分析 + 持仓管理 + 收益跟踪 + 投资报告 + 投资机会筛选
 """
 
@@ -175,7 +175,7 @@ def handle_task_command(args):
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description="🔥 火箭量化整合版 v2.6 - 智能投资助手",
+        description="🔥 高客秘书整合版 v2.6 - 智能投资助手",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
@@ -317,7 +317,7 @@ def main():
     if not args.command:
         parser.print_help()
         print("\n" + "=" * 80)
-        print("  🔥 火箭量化整合版 v2.6 - 快速开始")
+        print("  🔥 高客秘书整合版 v2.6 - 快速开始")
         print("=" * 80)
         print("\n🎯 快速使用：")
         print("  1. 分析股票:     python main.py analyze --code 300750")
