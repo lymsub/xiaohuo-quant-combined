@@ -105,12 +105,11 @@ class PortfolioManager:
         try:
             import akshare as ak
             
-            baostock_fmt = target_date.replace('-', '')
             df = ak.stock_zh_a_hist_min_em(
                 symbol=code,
                 period="1",
-                start_date=baostock_fmt,
-                end_date=baostock_fmt,
+                start_date=target_date,
+                end_date=target_date,
                 adjust="qfq"
             )
             
@@ -570,7 +569,7 @@ class PortfolioManager:
             if '.' in code:
                 code = code.split('.')[0]
             
-            akshare_date_fmt = target_date.replace('-', '')
+            akshare_date_fmt = target_date
             df = ak.stock_zh_a_hist_min_em(
                 symbol=code,
                 period="1",
