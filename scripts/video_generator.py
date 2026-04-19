@@ -32,9 +32,7 @@ CONFIG = {
     "default_output_name": "background_video.mp4"
 }
 
-def init_client():
-    """初始化API客户端"""
-    return Ark(api_key=CONFIG["api_key"], base_url=CONFIG["base_url"])
+
 
 def generate_background_video(prompt=None, output_path=None):
     """生成背景视频
