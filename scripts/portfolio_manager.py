@@ -47,19 +47,21 @@ class PortfolioManager:
             
             self.data_source = DataSourceManager(tushare_token=token)
     
-    def _get_today_open_price(self, ts_code: str) -> Optional[float]:
+    def _get_today_open_price(self, ts_code: str, target_date: str = None) -> Optional[float]:
         """
-        获取今日真实开盘价（多数据源自动降级：Baostock → AkShare）
+        获取指定日期的开盘价（多数据源自动降级：Baostock → AkShare）
         优先用Baostock日K数据，非交易时段也能正常获取，不需要实时行情接口
         
         Args:
             ts_code: 股票代码
+            target_date: 目标日期（YYYY-MM-DD），默认今天。支持传入历史日期获取历史开盘价
             
         Returns:
-            今日开盘价，如果获取失败则返回None
+            开盘价，如果获取失败则返回None
         """
         from datetime import date
-        today = date.today().strftime('%Y-%m-%d')
+        if target_date is None:
+            target_date = date.today().strftime('%Y-%m-%d')
         
         # 先转换代码格式
         code = ts_code
@@ -71,21 +73,18 @@ class PortfolioManager:
             import baostock as bs
             import pandas as pd
             
-            # 转换代码格式为Baostock格式
             if code.startswith('6'):
                 bs_code = f'sh.{code}'
             else:
                 bs_code = f'sz.{code}'
             
-            # 登录Baostock
             lg = bs.login()
             if lg.error_code != '0':
                 print(f"⚠️  Baostock登录失败: {lg.error_msg}")
             else:
-                # 查询日K数据
                 rs = bs.query_history_k_data_plus(bs_code, 
                     'open',
-                    start_date=today, end_date=today,
+                    start_date=target_date, end_date=target_date,
                     frequency='d', adjustflag='3')
                 
                 data_list = []
@@ -100,27 +99,26 @@ class PortfolioManager:
                         return open_price
             
         except Exception as e:
-            print(f"⚠️  Baostock获取 {ts_code} 今日开盘价失败，尝试AkShare: {e}")
+            print(f"⚠️  Baostock获取 {ts_code} {target_date}开盘价失败，尝试AkShare: {e}")
         
         # 第二数据源：AkShare分时数据（仅限交易时段）
         try:
             import akshare as ak
             
-            # 获取分时数据
+            baostock_fmt = target_date.replace('-', '')
             df = ak.stock_zh_a_hist_min_em(
                 symbol=code,
                 period="1",
-                start_date=today.replace('-', ''),
-                end_date=today.replace('-', ''),
+                start_date=baostock_fmt,
+                end_date=baostock_fmt,
                 adjust="qfq"
             )
             
             if df is not None and len(df) > 0 and '开盘' in df.columns:
-                # 返回第一条数据的开盘价
                 return float(df.iloc[0]['开盘'])
             
         except Exception as e:
-            print(f"⚠️  AkShare获取 {ts_code} 今日开盘价失败: {e}")
+            print(f"⚠️  AkShare获取 {ts_code} {target_date}开盘价失败: {e}")
         
         return None
     
@@ -137,7 +135,7 @@ class PortfolioManager:
             buy_date: 买入日期（默认今天）
             buy_time: 买入时间（可选，默认当前时间）
             notes: 备注
-            use_today_open: 是否使用今日真实开盘价（True=自动获取今日开盘价）
+            use_today_open: 是否使用买入日期的开盘价（True=自动获取buy_date对应日期的开盘价）
             
         Returns:
             操作结果
@@ -150,21 +148,19 @@ class PortfolioManager:
         if buy_time is None:
             buy_time = datetime.now().strftime('%H:%M:%S')
         
-        # 如果要求使用今日开盘价，优先获取今日开盘价
         if use_today_open:
-            today_open_price = self._get_today_open_price(ts_code)
-            if today_open_price is not None:
-                buy_price = today_open_price
+            open_price = self._get_today_open_price(ts_code, target_date=buy_date)
+            if open_price is not None:
+                buy_price = open_price
                 if notes:
-                    notes = f"{notes}（今日开盘价自动获取）"
+                    notes = f"{notes}（{buy_date}开盘价自动获取）"
                 else:
-                    notes = "今日开盘价自动获取"
+                    notes = f"{buy_date}开盘价自动获取"
             else:
                 return {
                     "success": False,
-                    "message": f"无法获取 {ts_code} 的今日开盘价，请手动指定买入价格"
+                    "message": f"无法获取 {ts_code} 在 {buy_date} 的开盘价，请手动指定买入价格"
                 }
-        # 如果没有提供买入价格，从实时行情获取
         elif buy_price is None:
             buy_price = self._get_latest_price(ts_code)
             if buy_price is None:
@@ -552,12 +548,13 @@ class PortfolioManager:
         
         return None
     
-    def _get_1130_price(self, ts_code: str) -> Optional[float]:
+    def _get_1130_price(self, ts_code: str, target_date: str = None) -> Optional[float]:
         """
-        获取11:30的价格（使用AkShare分时数据接口，失败自动回退到实时价格）
+        获取指定日期11:30的价格（使用AkShare分时数据接口，失败自动回退到实时价格）
         
         Args:
             ts_code: 股票代码
+            target_date: 目标日期（YYYY-MM-DD），默认今天。支持传入历史日期获取历史时段价格
             
         Returns:
             11:30的价格，如果获取失败则返回最新实时价格
@@ -566,41 +563,37 @@ class PortfolioManager:
             import akshare as ak
             from datetime import date
             
-            today = date.today().strftime('%Y-%m-%d')
+            if target_date is None:
+                target_date = date.today().strftime('%Y-%m-%d')
             
-            # 先转换代码格式，去掉可能的市场后缀
             code = ts_code
             if '.' in code:
                 code = code.split('.')[0]
             
-            # 获取分时数据
+            akshare_date_fmt = target_date.replace('-', '')
             df = ak.stock_zh_a_hist_min_em(
                 symbol=code,
                 period="1",
-                start_date=today,
-                end_date=today,
+                start_date=akshare_date_fmt,
+                end_date=akshare_date_fmt,
                 adjust="qfq"
             )
             
             if df is not None and len(df) > 0 and '时间' in df.columns and '收盘' in df.columns:
-                # 筛选11:30的数据
                 mask = df['时间'].astype(str).str.contains('11:30', na=False)
                 filtered = df[mask]
                 
                 if len(filtered) > 0:
-                    # 返回11:30的收盘价
                     return float(filtered.iloc[0]['收盘'])
                 else:
-                    # 如果没找到11:30，找最后一个上午的数据（11:29或11:30前）
                     morning_mask = df['时间'].astype(str).str.contains('11:', na=False)
                     morning_data = df[morning_mask]
                     if len(morning_data) > 0:
                         return float(morning_data.iloc[-1]['收盘'])
             
         except Exception as e:
-            print(f"⚠️  获取 {ts_code} 11:30价格失败，自动回退到实时价格: {e}")
+            print(f"⚠️  获取 {ts_code} {target_date} 11:30价格失败，自动回退到实时价格: {e}")
         
-        # 降级：获取失败直接返回最新实时价格
         return self._get_latest_price(ts_code)
 
     def calculate_daily_return(self) -> Dict[str, Any]:

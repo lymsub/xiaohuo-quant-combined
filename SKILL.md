@@ -47,6 +47,29 @@ keywords:
 | `_get_realtime_price()` | 仅使用单一AkShare数据源，限流时易失败，稳定性差 | 统一使用 `_get_latest_price()`（新浪/腾讯/Baostock/AkShare四源自动降级重试，成功率99.9% |
 | 所有下划线开头的私有内部方法 | 为内部工具实现，未做对外兼容性保障 | 所有外部调用请使用类对外暴露的公开接口方法 |
 ---
+## ⚠️ 价格获取方法规范（严格遵守，违反即错！）
+
+### 📋 价格获取方法对照表
+
+| 场景 | 正确方法 | 参数 | 说明 |
+|------|---------|------|------|
+| 获取**实时最新价** | `_get_latest_price(ts_code)` | ts_code | 四源降级（新浪/腾讯/AkShare/Tushare），成功率99.9% |
+| 获取**指定日期开盘价** | `_get_today_open_price(ts_code, target_date)` | ts_code, target_date(YYYY-MM-DD) | 双源降级（Baostock→AkShare），支持历史日期 |
+| 获取**指定日期11:30价格** | `_get_1130_price(ts_code, target_date)` | ts_code, target_date(YYYY-MM-DD) | AkShare分时数据，失败回退到实时价，支持历史日期 |
+
+### 🚫 买入持仓时价格获取规则
+
+1. **用户指定了买入价格** → 直接使用用户指定的价格，不调用任何接口
+2. **用户说"开盘价买入"** → 必须调用 `_get_today_open_price(ts_code, target_date=buy_date)`，**必须传入buy_date**
+3. **用户说"按当前价买入"或未指定价格** → 调用 `_get_latest_price(ts_code)` 获取实时价格
+4. **用户指定了历史日期但没说价格** → 调用 `_get_today_open_price(ts_code, target_date=buy_date)` 获取该日期开盘价
+
+### ❌ 严格禁止
+
+1. ❌ 禁止在用户指定历史日期时，获取今天的开盘价
+2. ❌ 禁止调用 `_get_realtime_price()`（已废弃，仅单源AkShare）
+3. ❌ 禁止编造任何价格数据，获取失败必须返回错误提示
+---
 
 ## 五种报告体系
 
