@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
 source venv/bin/activate
 
 # 获取今日涨幅榜

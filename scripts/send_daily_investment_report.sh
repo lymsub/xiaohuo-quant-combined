@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
 source venv/bin/activate
 
 # 生成投资报告数据

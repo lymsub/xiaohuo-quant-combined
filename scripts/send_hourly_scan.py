@@ -8,7 +8,7 @@ import glob
 from datetime import datetime
 
 # 切换到脚本目录
-os.chdir('/root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts')
+os.chdir('/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts')
 
 # 获取最新涨幅榜文件
 csv_files = sorted(glob.glob('today_gainers_*.csv'), key=os.path.getmtime, reverse=True)

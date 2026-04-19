@@ -1,5 +1,5 @@
 ---
-name: xiaohuo-quant-combined
+name: xiaohuo-quant-secretary
 description: 高客秘书整合版 v2.6 - 统一入口，整合股票筛选、个股分析、收益跟踪、投资报告四大能力。个股分析报告格式完全不动，新增午盘/收盘收益跟踪、投资报告。支持飞书富文本卡片和通用输出两种模式。新增自动安装检查功能，用户说"启动高客秘书"即可自动完成安装配置。
 keywords:
   - 启动高客秘书
@@ -380,8 +380,8 @@ keywords:
 
 **必须执行的命令：**
 ```bash
-cd /root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts
-/root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts/venv/bin/python get_today_gainers.py
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
+/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv/bin/python get_today_gainers.py
 ```
 
 ### 筛选步骤 3：解析并展示结果
@@ -432,8 +432,8 @@ cd /root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts
 
 **必须执行的命令：**
 ```bash
-cd /root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts
-/root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts/venv/bin/python quant_analyzer_v22.py --code {股票代码} --days 90 --output {股票代码}_result.json
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
+/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv/bin/python quant_analyzer_v22.py --code {股票代码} --days 90 --output {股票代码}_result.json
 ```
 
 **新特性说明（v2.2）：**
@@ -692,29 +692,29 @@ RSI解读：
 - **SQLite 缓存**：优先从本地数据库读取，速度提升 1.5 倍
 
 ### 📁 正确的文件路径
-- **项目目录**：`/root/.openclaw/workspace/skills/rocket-quant-combined_v2.6/scripts`
+- **项目目录**：`/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts`
 - **分析脚本**：`quant_analyzer_v22.py`（v2.2 双数据源版本）
 - **筛选脚本**：`get_today_gainers.py`（今日涨幅榜筛选）
 - **推荐脚本**：`recommend_stocks.py`（股票推荐）
-- **虚拟环境**：`/root/.openclaw/workspace/skills/rocket-quant-combined_v2.6/scripts/venv`
+- **虚拟环境**：`/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv`
 
 ### 📌 标准执行命令（必须严格遵守）
 **个股分析执行命令：**
 ```bash
-cd /root/.openclaw/workspace/skills/rocket-quant-combined_v2.6/scripts
-/root/.openclaw/workspace/skills/rocket-quant-combined_v2.6/scripts/venv/bin/python quant_analyzer_v22.py --code {股票代码} --days 90 --output {股票代码}_result.json
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
+/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv/bin/python quant_analyzer_v22.py --code {股票代码} --days 90 --output {股票代码}_result.json
 ```
 
 **今日涨幅榜执行命令：**
 ```bash
-cd /root/.openclaw/workspace/skills/rocket-quant-combined_v2.6/scripts
-/root/.openclaw/workspace/skills/rocket-quant-combined_v2.6/scripts/venv/bin/python get_today_gainers.py
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
+/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv/bin/python get_today_gainers.py
 ```
 
 **股票推荐执行命令：**
 ```bash
-cd /root/.openclaw/workspace/skills/rocket-quant-combined_v2.6/scripts
-/root/.openclaw/workspace/skills/rocket-quant-combined_v2.6/scripts/venv/bin/python recommend_stocks.py
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
+/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv/bin/python recommend_stocks.py
 ```
 
 ---
@@ -752,8 +752,8 @@ cd /root/.openclaw/workspace/skills/rocket-quant-combined_v2.6/scripts
 
 **午盘报告：**
 ```bash
-cd /root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts
-/root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts/venv/bin/python -c "
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
+/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv/bin/python -c "
 from portfolio_manager import get_portfolio_manager
 from return_tracker import get_return_tracker
 import json
@@ -774,8 +774,8 @@ print(json.dumps(output, ensure_ascii=False))
 
 **收盘报告：**
 ```bash
-cd /root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts
-/root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts/venv/bin/python -c "
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
+/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv/bin/python -c "
 from portfolio_manager import get_portfolio_manager
 from return_tracker import get_return_tracker
 import json
@@ -926,8 +926,8 @@ print(json.dumps(output, ensure_ascii=False))
 
 **必须执行的命令：**
 ```bash
-cd /root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts
-/root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts/venv/bin/python -c "
+cd /root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts
+/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv/bin/python -c "
 from portfolio_manager import get_portfolio_manager
 from return_tracker import get_return_tracker
 import json

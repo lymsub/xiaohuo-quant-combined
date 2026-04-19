@@ -6,8 +6,8 @@ set -e
 
 # 项目目录
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="/root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts/venv"
-SYNC_SCRIPT="/root/.openclaw/workspace/skills/xiaohuo-quant-combined/scripts/sync_data.py"
+VENV_DIR="/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/venv"
+SYNC_SCRIPT="/root/.openclaw/workspace/skills/xiaohuo-quant-secretary/scripts/sync_data.py"
 
 # 要同步的股票列表（可自定义）
 STOCK_CODES=${1:-"300919,600519,000001"}
