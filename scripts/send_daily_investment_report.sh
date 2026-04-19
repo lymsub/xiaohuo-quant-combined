@@ -31,7 +31,7 @@ openclaw message send --channel feishu --target chat:oc_ee8ca122861cf447759689de
   "header": {
     "title": {
       "tag": "plain_text",
-      "content": "🔥 火箭量化每日投资报告 - '"$(date +%Y-%m-%d)"'"
+      "content": "🔥 高客秘书每日投资报告 - '"$(date +%Y-%m-%d)"'"
     },
     "template": "purple"
   },

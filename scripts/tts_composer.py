@@ -109,16 +109,18 @@ def compose_video(video_path, audio_path, output_path=None, target_duration=None
     
     # 循环背景视频并合并音频
     print(f"正在合成视频，目标时长：{target_duration:.1f}秒...")
+    # 输入顺序：第一个输入是视频（索引0），第二个输入是音频（索引1）
     cmd = [
         "ffmpeg", "-y",
-        "-stream_loop", "-1",  # 无限循环背景视频
+        "-stream_loop", "-1",
         "-i", video_path,
         "-i", audio_path,
         "-c:v", "copy",
         "-c:a", "aac",
-        "-map", "0:v:0",
-        "-map", "1:a:0",
+        "-map", "0:v:0",  # 从视频文件（输入0）获取视频流
+        "-map", "1:a:0",  # 从音频文件（输入1）获取音频流
         "-t", str(math.ceil(target_duration)),  # 取整，避免音画不同步
+        "-shortest",  # 以较短的流为准
         output_path
     ]
     

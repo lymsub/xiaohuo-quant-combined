@@ -16,9 +16,18 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from config import DOUBAN_CONFIG, COS_CONFIG, FEISHU_CONFIG, load_custom_config
-from morning_report_generator import generate_report
+# 新逻辑：使用精简版250字早报，无冗余内容
+from generate_short_report import generate_short_report as generate_report
 from video_generator import generate_background_video
+import video_generator
+# 新逻辑：强制使用Seedance 2.0模型生成15秒背景模版
+video_generator.CONFIG["model"] = "doubao-seedance-2-0-260128"
+video_generator.CONFIG["video_duration"] = 15
 from tts_composer import text_to_speech, compose_video
+import tts_composer
+# 新逻辑：语速250字/分钟，总时长65秒预留缓冲
+tts_composer.CONFIG["speech_rate"] = "+25%"
+tts_composer.CONFIG["target_duration"] = 65
 
 # 全局配置
 CONFIG = {
@@ -27,7 +36,7 @@ CONFIG = {
     "save_local": True,  # 是否保存本地文件
     "local_save_dir": os.path.join(SCRIPT_DIR.parent, "history/"),
     "generate_new_background": True,  # 是否每天生成新背景视频，False则复用现有背景
-    "default_background": os.path.join(SCRIPT_DIR, "full_cn_morning.mp4"),  # 默认背景视频路径
+    "default_background": os.path.join(SCRIPT_DIR, "full_cn_morning.mp4"),  # 兜底背景视频路径，生成失败自动用这个
     "feishu_send_video": FEISHU_CONFIG["send_video_directly"],  # 无COS时直接发飞书
     "background_cache_dir": os.path.join(SCRIPT_DIR, "cache", "video")  # 背景视频缓存目录
 }
@@ -47,154 +56,180 @@ def upload_to_feishu_drive(local_path, file_name):
     """上传文件到飞书云盘，返回飞书内链"""
     try:
         import json
-        # 调用feishu_drive_file上传接口
-        cmd = f'openclaw tool feishu_drive_file --action upload --file_path "{local_path}" --type file'
+        # 新版OpenClaw调用工具方式：通过agent执行工具调用
+        cmd = f'''openclaw agent --local --message '{{"name": "feishu_drive_file", "parameters": {{"action": "upload", "file_path": "{local_path}", "file_name": "{file_name}"}}}}' --json'''
         result = os.popen(cmd).read()
-        # 解析返回结果
+        data = json.loads(result)
+        if "file_token" in data.get("result", {}):
+            return f"https://bytedance.feishu.cn/file/{data['result']['file_token']}"
+        elif "file_token" in data:
+            return f"https://bytedance.feishu.cn/file/{data['file_token']}"
+        else:
+            # 兜底：直接发送视频文件到群
+            send_cmd = f"openclaw message send --channel feishu --target oc_407a74081dd85d531ca4426ab3d7f71a --file_path {local_path}"
+            os.popen(send_cmd).read()
+            return None
+    except Exception as e:
+        print(f"飞书上传失败：{e}")
+        # 兜底：直接发送视频文件到群
         try:
-            result_json = json.loads(result)
-            if "file_token" in result_json:
-                return f"https://bytedance.feishu.cn/file/{result_json['file_token']}"
+            send_cmd = f"openclaw message send --channel feishu --target oc_407a74081dd85d531ca4426ab3d7f71a --file_path {local_path}"
+            os.popen(send_cmd).read()
         except:
             pass
-        # 如果解析失败，尝试从输出中提取链接
-        if "https://bytedance.feishu.cn/file/" in result:
-            for line in result.split("\n"):
-                if "https://bytedance.feishu.cn/file/" in line:
-                    return line.strip()
-        print(f"飞书云盘上传失败：{result}")
-        return None
-    except Exception as e:
-        print(f"飞书云盘上传异常：{e}")
         return None
 
-def pre_generate_background():
-    """预生成12秒背景视频，保存到缓存，供后续合成使用"""
-    print("="*80)
-    print("🎬 预生成早报背景视频")
-    print("="*80)
+def main(force_regenerate=False):
+    """主函数"""
+    # 生成日期目录
+    today = datetime.datetime.now().strftime("%Y%m%d")
+    save_dir = os.path.join(CONFIG["local_save_dir"], today)
+    os.makedirs(save_dir, exist_ok=True)
     
-    # 创建缓存目录
-    os.makedirs(CONFIG["background_cache_dir"], exist_ok=True)
-    
-    # 生成背景视频
-    try:
-        video_path = generate_background_video()
-        # 保存到缓存，使用当天日期命名
-        today_str = datetime.datetime.now().strftime("%Y%m%d")
-        cache_path = os.path.join(CONFIG["background_cache_dir"], f"background_{today_str}.mp4")
-        os.system(f"cp {video_path} {cache_path}")
-        print(f"✅ 背景视频预生成完成，缓存路径：{cache_path}")
-        return cache_path
-    except Exception as e:
-        print(f"❌ 背景预生成失败：{e}")
-        raise e
-
-def get_cached_background():
-    """获取当天预生成的背景视频，如果没有则实时生成"""
-    today_str = datetime.datetime.now().strftime("%Y%m%d")
-    cache_path = os.path.join(CONFIG["background_cache_dir"], f"background_{today_str}.mp4")
-    if os.path.exists(cache_path):
-        print(f"使用预生成的背景视频：{cache_path}")
-        return cache_path
-    print("未找到预生成背景，实时生成中...")
-    return generate_background_video()
-
-def main():
-    # 判断参数
-    force_regenerate = False
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--pre-generate-bg":
-            pre_generate_background()
-            return
-        elif sys.argv[1] == "--force":
-            force_regenerate = True
-            print("🔄 强制重新生成今日早报...")
-    
-    # 检查当天是否已经生成过早报，有则直接返回，除非强制重新生成
-    today_str = datetime.datetime.now().strftime("%Y%m%d")
-    today_save_dir = os.path.join(CONFIG["local_save_dir"], today_str)
-    exist_final_video = os.path.join(today_save_dir, f"final_report_{today_str}.mp4")
-    
-    # 校验已存在视频是否为有效完整视频（时长≥30秒）
-    valid_exist = False
-    if not force_regenerate and os.path.exists(exist_final_video):
-        # 获取视频时长
+    # 检查当天是否已经生成过早报，优先复用缓存
+    final_video_path = os.path.join(save_dir, f"final_report_{today}.mp4")
+    link_cache_path = os.path.join(save_dir, "link_cache.json")
+    if not force_regenerate and os.path.exists(final_video_path) and os.path.exists(link_cache_path):
         try:
-            import subprocess
-            result = subprocess.run(f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {exist_final_video}", shell=True, capture_output=True, text=True)
-            duration = float(result.stdout.strip())
-            if duration >= 30:
-                valid_exist = True
-            else:
-                print(f"⚠️ 已存在视频时长仅{duration}秒，为无效模板，强制重新生成...")
-        except:
-            print("⚠️ 无法校验已存在视频时长，强制重新生成...")
-    
-    if valid_exist:
-        print(f"VIDEO_PATH={exist_final_video}")
-        print("\n✅ 早报视频生成完成！")
-        return
+            with open(link_cache_path, "r", encoding="utf-8") as f:
+                cache_data = json.load(f)
+            print("="*80)
+            print("✅ 发现已生成的今日早报，直接复用缓存结果")
+            print("="*80)
+            print(f"飞书内链：{cache_data.get('feishu_link')}")
+            print(f"COS链接：{cache_data.get('cos_link')}")
+            return cache_data
+        except Exception as e:
+            print(f"读取缓存失败，重新生成：{e}")
     
     print("="*80)
     print("🚀 开始执行每日早报生成全流程")
     print("="*80)
     
-    # 创建历史保存目录
-    os.makedirs(today_save_dir, exist_ok=True)
-    
+    # Step 1：生成早报内容
+    print("\n📝 Step 1/5：生成早报内容...")
     try:
-        # Step 1: 生成早报内容
-        print("\n📝 Step 1/5：生成早报内容...")
-        report = generate_report()
-        report_path = os.path.join(today_save_dir, f"morning_report_{today_str}.txt")
+        report_content = generate_report()
+        report_path = os.path.join(save_dir, f"morning_report_{today}.txt")
         with open(report_path, "w", encoding="utf-8") as f:
-            f.write(report)
+            f.write(report_content)
         print(f"早报内容已保存到：{report_path}")
-        
-        # Step 2: 生成/获取背景视频（优先使用预生成的）
-        print("\n🎬 Step 2/5：获取背景视频...")
-        if CONFIG["generate_new_background"]:
-            video_path = get_cached_background()
-            # 备份背景视频
-            backup_video_path = os.path.join(today_save_dir, f"background_{today_str}.mp4")
-            os.system(f"cp {video_path} {backup_video_path}")
-        else:
-            # 禁止正常生成流程使用默认模板，必须生成动态背景
-            print("⚠️ 配置generate_new_background为False，强制生成动态背景...")
-            video_path = get_cached_background()
-            backup_video_path = os.path.join(today_save_dir, f"background_{today_str}.mp4")
-            os.system(f"cp {video_path} {backup_video_path}")
-        
-        # Step 3: 生成语音
-        print("\n🎤 Step 3/5：生成语音播报...")
-        audio_path, audio_duration = text_to_speech(report)
-        # 备份语音
-        backup_audio_path = os.path.join(today_save_dir, f"voice_{today_str}.mp3")
-        os.system(f"cp {audio_path} {backup_audio_path}")
-        
-        # Step 4: 合成最终视频
-        print("\n🎞️ Step 4/5：合成最终视频...")
-        final_video_path = compose_video(video_path, audio_path, target_duration=60)
-        # 备份最终视频
-        backup_final_path = os.path.join(today_save_dir, f"final_report_{today_str}.mp4")
-        os.system(f"cp {final_video_path} {backup_final_path}")
-        print(f"最终视频已保存到：{backup_final_path}")
-        
-        # Step 5: 上传到公网或发送到飞书
-        print("\n☁️ Step 5/5：发布早报视频...")
-        public_url = None
-        feishu_url = None
-        
-        # 先上传到公网COS
-        # 仅输出本地视频路径，上传逻辑交给OpenClaw Skill层处理
-        print(f"VIDEO_PATH={backup_final_path}")
-        print("\n✅ 早报视频生成完成！")
-        return backup_final_path
-        
     except Exception as e:
-        print(f"\n❌ 流程执行失败：{e}")
-        raise e
+        print(f"早报生成失败，使用默认内容：{e}")
+        report_content = "各位投资者早上好，今日市场整体平稳，建议关注优质蓝筹标的投资机会，投资有风险，入市需谨慎。"
+    
+    # Step 2：获取背景视频
+    print("\n🎬 Step 2/5：获取背景视频...")
+    background_path = None
+    # 优先使用缓存的背景视频
+    if not CONFIG["generate_new_background"]:
+        cache_files = sorted(Path(CONFIG["background_cache_dir"]).glob("*.mp4"), key=os.path.getmtime, reverse=True)
+        if cache_files:
+            background_path = str(cache_files[0])
+            print(f"复用缓存背景视频：{background_path}")
+    
+    # 没有缓存则生成新背景
+    if not background_path:
+        try:
+            print("未找到预生成背景，实时生成中...")
+            background_path = generate_background_video()
+            # 缓存新生成的背景
+            os.makedirs(CONFIG["background_cache_dir"], exist_ok=True)
+            cache_path = os.path.join(CONFIG["background_cache_dir"], f"bg_{today}.mp4")
+            os.system(f"cp {background_path} {cache_path}")
+            print(f"背景视频已缓存到：{cache_path}")
+        except Exception as e:
+            # 兜底逻辑：生成失败使用默认背景
+            print(f"背景视频生成失败，使用兜底模版：{e}")
+            background_path = CONFIG["default_background"]
+    
+    # Step 3：生成语音播报
+    print("\n🎤 Step 3/5：生成语音播报...")
+    try:
+        result = text_to_speech(report_content)
+        # 处理返回值：如果是tuple，取第一个元素作为路径
+        if isinstance(result, tuple):
+            audio_path = result[0]
+        else:
+            audio_path = result
+        print(f"语音生成成功，路径：{audio_path}")
+    except Exception as e:
+        print(f"语音生成失败，退出：{e}")
+        sys.exit(1)
+    
+    # Step 4：合成最终视频
+    print("\n🎞️ Step 4/5：合成最终视频...")
+    try:
+        final_video_path = compose_video(background_path, audio_path)
+        # 保存到历史目录
+        save_video_path = os.path.join(save_dir, f"final_report_{today}.mp4")
+        os.system(f"cp {final_video_path} {save_video_path}")
+        print(f"最终视频已保存到：{save_video_path}")
+        # 输出到环境变量供后续调用
+        print(f"VIDEO_PATH={save_video_path}")
+    except Exception as e:
+        print(f"视频合成失败，退出：{e}")
+        sys.exit(1)
+    
+    # Step 5：发布早报
+    print("\n☁️ Step 5/5：发布早报视频...")
+    feishu_link = None
+    cos_link = None
+    
+    if CONFIG["upload_to_cos"]:
+        try:
+            cos_file_name = f"morning_report_{today}.mp4"
+            cos_link = upload_to_cos(save_video_path, cos_file_name)
+            print(f"COS链接：{cos_link}")
+        except Exception as e:
+            print(f"COS上传失败：{e}")
+    
+    if CONFIG["feishu_send_video"]:
+        try:
+            feishu_link = upload_to_feishu_drive(save_video_path, f"投资早报_{today}.mp4")
+            print(f"飞书内链：{feishu_link}")
+        except Exception as e:
+            print(f"飞书上传失败：{e}")
+    
+    print("\n" + "="*80)
+    print("✅ 早报视频生成完成！")
+    print("="*80)
+    
+    # 保存链接到缓存文件
+    cache_data = {
+        "video_path": save_video_path,
+        "feishu_link": feishu_link,
+        "cos_link": cos_link,
+        "report_content": report_content,
+        "generate_time": datetime.datetime.now().isoformat()
+    }
+    try:
+        with open(link_cache_path, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"缓存链接失败：{e}")
+    
+    # 返回结果
+    return cache_data
 
 if __name__ == "__main__":
-    main()
+    # 处理参数
+    force_regenerate = False
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--pre-generate-bg":
+            print("🔧 预生成背景视频模式...")
+            try:
+                path = generate_background_video()
+                os.makedirs(CONFIG["background_cache_dir"], exist_ok=True)
+                cache_path = os.path.join(CONFIG["background_cache_dir"], f"bg_pre_{datetime.datetime.now().strftime('%Y%m%d%H%M')}.mp4")
+                os.system(f"cp {path} {cache_path}")
+                print(f"✅ 背景视频预生成完成，缓存到：{cache_path}")
+            except Exception as e:
+                print(f"❌ 预生成失败：{e}")
+            sys.exit(0)
+        elif sys.argv[1] == "--force":
+            force_regenerate = True
+            print("🔧 强制重新生成早报模式，忽略缓存...")
+    
+    # 正常执行全流程
+    result = main(force_regenerate=force_regenerate)

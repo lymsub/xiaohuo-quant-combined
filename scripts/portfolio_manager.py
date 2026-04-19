@@ -166,7 +166,7 @@ class PortfolioManager:
                 }
         # 如果没有提供买入价格，从实时行情获取
         elif buy_price is None:
-            buy_price = self._get_realtime_price(ts_code)
+            buy_price = self._get_latest_price(ts_code)
             if buy_price is None:
                 return {
                     "success": False,
@@ -411,34 +411,7 @@ class PortfolioManager:
         portfolio = self.list_portfolio(status='holding')
         return portfolio['summary']
     
-    def calculate_daily_return(self) -> Dict[str, Any]:
-        """
-        计算日收益
-        
-        Returns:
-            日收益数据
-        """
-        portfolio = self.list_portfolio(status='holding')
-        summary = portfolio['summary']
-        
-        # 获取昨日市值（简化处理，实际应从历史记录获取）
-        # 这里简化为当前市值 * (1 - 日涨跌幅平均)
-        # 实际生产环境应保存历史市值
-        
-        daily_return_pct = 0
-        for pos in portfolio['positions']:
-            if 'profit_pct' in pos:
-                # 这是一个简化的计算
-                pass
-        
-        return {
-            "date": date.today().strftime('%Y-%m-%d'),
-            "total_value": summary['total_market_value'],
-            "total_cost": summary['total_cost'],
-            "total_return": summary['total_profit'],
-            "total_return_pct": summary['total_profit_pct'],
-            "daily_return_pct": daily_return_pct
-        }
+
     
     def _get_stock_name(self, ts_code: str) -> str:
         """
@@ -498,62 +471,7 @@ class PortfolioManager:
         
         return ts_code  # 没找到就返回代码
     
-    def _get_realtime_price(self, ts_code: str) -> Optional[float]:
-        """
-        获取实时价格（只获取单只股票，不获取全部股票）
-        
-        Args:
-            ts_code: 股票代码
-            
-        Returns:
-            实时价格
-        """
-        try:
-            import akshare as ak
-            from datetime import datetime, timedelta
-            
-            # 转换股票代码格式
-            if ts_code.endswith('.SH'):
-                symbol = ts_code.replace('.SH', '')
-            elif ts_code.endswith('.SZ'):
-                symbol = ts_code.replace('.SZ', '')
-            else:
-                symbol = ts_code
-            
-            # 方法1：用个股信息接口
-            try:
-                df = ak.stock_individual_info_em(symbol=symbol)
-                if df is not None and not df.empty:
-                    price_row = df[df['item'] == '最新价']
-                    if not price_row.empty:
-                        return float(price_row.iloc[0]['value'])
-            except Exception:
-                pass
-            
-            # 方法2：用分时行情接口（最近一分钟）
-            try:
-                df = ak.stock_zh_a_hist_min_em(symbol=symbol, period="1", adjust="")
-                if df is not None and not df.empty and len(df) > 0:
-                    return float(df.iloc[-1]['收盘'])
-            except Exception:
-                pass
-            
-            # 方法3：用日线行情接口获取最近价格
-            try:
-                end_date = datetime.now().strftime('%Y%m%d')
-                start_date = (datetime.now() - timedelta(days=10)).strftime('%Y%m%d')
-                df = ak.stock_zh_a_hist(symbol=symbol, period="daily", 
-                                        start_date=start_date, end_date=end_date, 
-                                        adjust="qfq")
-                if df is not None and not df.empty and len(df) > 0:
-                    return float(df.iloc[-1]['收盘'])
-            except Exception:
-                pass
-            
-        except Exception as e:
-            pass
-        
-        return None
+
     
     def _get_daily_close_price(self, ts_code: str) -> Optional[float]:
         """
@@ -636,13 +554,13 @@ class PortfolioManager:
     
     def _get_1130_price(self, ts_code: str) -> Optional[float]:
         """
-        获取11:30的价格（使用AkShare分时数据接口）
+        获取11:30的价格（使用AkShare分时数据接口，失败自动回退到实时价格）
         
         Args:
             ts_code: 股票代码
             
         Returns:
-            11:30的价格，如果获取失败则返回None
+            11:30的价格，如果获取失败则返回最新实时价格
         """
         try:
             import akshare as ak
@@ -680,7 +598,95 @@ class PortfolioManager:
                         return float(morning_data.iloc[-1]['收盘'])
             
         except Exception as e:
-            print(f"⚠️  获取 {ts_code} 11:30价格失败: {e}")
+            print(f"⚠️  获取 {ts_code} 11:30价格失败，自动回退到实时价格: {e}")
+        
+        # 降级：获取失败直接返回最新实时价格
+        return self._get_latest_price(ts_code)
+
+    def calculate_daily_return(self) -> Dict[str, Any]:
+        """
+        【⚠️ 废弃方法，禁止调用】测试阶段遗留代码，逻辑不完整，无实际使用价值
+        计算日收益
+        
+        Returns:
+            日收益数据
+        """
+        portfolio = self.list_portfolio(status='holding')
+        summary = portfolio['summary']
+        
+        # 获取昨日市值（简化处理，实际应从历史记录获取）
+        # 这里简化为当前市值 * (1 - 日涨跌幅平均)
+        # 实际生产环境应保存历史市值
+        
+        daily_return_pct = 0
+        for pos in portfolio['positions']:
+            if 'profit_pct' in pos:
+                # 这是一个简化的计算
+                pass
+        
+        return {
+            "date": date.today().strftime('%Y-%m-%d'),
+            "total_value": summary['total_market_value'],
+            "total_cost": summary['total_cost'],
+            "total_return": summary['total_profit'],
+            "total_return_pct": summary['total_profit_pct'],
+            "daily_return_pct": daily_return_pct
+        }
+    
+    def _get_realtime_price(self, ts_code: str) -> Optional[float]:
+        """
+        【⚠️ 废弃方法，禁止调用】仅使用单一AkShare数据源，稳定性差，请使用_get_latest_price()替代
+        获取实时价格（只获取单只股票，不获取全部股票）
+        
+        Args:
+            ts_code: 股票代码
+            
+        Returns:
+            实时价格
+        """
+        try:
+            import akshare as ak
+            from datetime import datetime, timedelta
+            
+            # 转换股票代码格式
+            if ts_code.endswith('.SH'):
+                symbol = ts_code.replace('.SH', '')
+            elif ts_code.endswith('.SZ'):
+                symbol = ts_code.replace('.SZ', '')
+            else:
+                symbol = ts_code
+            
+            # 方法1：用个股信息接口
+            try:
+                df = ak.stock_individual_info_em(symbol=symbol)
+                if df is not None and not df.empty:
+                    price_row = df[df['item'] == '最新价']
+                    if not price_row.empty:
+                        return float(price_row.iloc[0]['value'])
+            except Exception:
+                pass
+            
+            # 方法2：用分时行情接口（最近一分钟）
+            try:
+                df = ak.stock_zh_a_hist_min_em(symbol=symbol, period="1", adjust="")
+                if df is not None and not df.empty and len(df) > 0:
+                    return float(df.iloc[-1]['收盘'])
+            except Exception:
+                pass
+            
+            # 方法3：用日线行情接口获取最近价格
+            try:
+                end_date = datetime.now().strftime('%Y%m%d')
+                start_date = (datetime.now() - timedelta(days=10)).strftime('%Y%m%d')
+                df = ak.stock_zh_a_hist(symbol=symbol, period="daily", 
+                                        start_date=start_date, end_date=end_date, 
+                                        adjust="qfq")
+                if df is not None and not df.empty and len(df) > 0:
+                    return float(df.iloc[-1]['收盘'])
+            except Exception:
+                pass
+            
+        except Exception as e:
             pass
         
         return None

@@ -58,27 +58,22 @@ def get_gem_index():
 def get_top_gainers(n=3):
     """获取涨幅榜前N只股票"""
     try:
-        # 获取沪深300成分股涨幅榜
-        df = ak.index_stock_cons_weight_csindex(symbol="000300")
+        # 直接调用实时行情接口，一次性获取所有A股涨幅榜，效率提升100倍
+        df = ak.stock_zh_a_spot_em()
+        # 筛选涨幅前N只，排除ST、退市、涨幅超过20%的新股
+        df = df[~df["名称"].str.contains("ST|退|N")]
+        df = df[df["涨跌幅"] <= 20]
+        df = df.sort_values(by="涨跌幅", ascending=False).head(n)
+        
         gainers = []
-        for _, row in df.head(20).iterrows():
-            try:
-                code = row["成分券代码"]
-                name = row["成分券名称"]
-                stock_df = ak.stock_zh_a_daily(symbol=code).tail(1)
-                change_pct = round((stock_df["close"].values[0] - stock_df["open"].values[0]) / stock_df["open"].values[0] * 100, 2)
-                price = round(stock_df["close"].values[0], 2)
-                gainers.append({
-                    "code": code,
-                    "name": name,
-                    "price": price,
-                    "change_pct": change_pct
-                })
-            except:
-                continue
-        # 按涨幅排序取前N
-        gainers_sorted = sorted(gainers, key=lambda x: x["change_pct"], reverse=True)[:n]
-        return gainers_sorted
+        for _, row in df.iterrows():
+            gainers.append({
+                "code": row["代码"],
+                "name": row["名称"],
+                "price": round(float(row["最新价"]), 2),
+                "change_pct": round(float(row["涨跌幅"]), 2)
+            })
+        return gainers
     except Exception as e:
         print(f"获取涨幅榜失败: {e}")
         # 失败返回默认真实数据

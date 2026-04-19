@@ -64,8 +64,9 @@ CUSTOM_ALGORITHMS = [
 
 # 豆包API配置
 DOUBAN_CONFIG = {
-    "api_key": os.getenv("VOLC_ARK_API_KEY", os.getenv("DOUBAO_API_KEY", "")),
-    "api_base_url": os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"),
+    "api_key": os.getenv("ARK_API_KEY", os.getenv("VOLC_ARK_API_KEY", os.getenv("DOUBAO_API_KEY", ""))),
+    # 强制使用公网地址，内网地址在服务器上无法解析
+    "api_base_url": "https://ark.cn-beijing.volces.com/api/v3",
     "video_api": "https://ark.cn-beijing.volces.com/api/v3/videos/generations",
     "video_model": "doubao-seedance-1-5-pro-251215",
     "video_style": "专业金融早报背景，抽象科技感动态数据流动画，蓝色紫色渐变光效，粒子流动，数字波浪，无任何文字和K线图，简洁大气科技感，适合财经新闻播报场景",
