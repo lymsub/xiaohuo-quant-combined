@@ -219,7 +219,8 @@ def get_today_gainers(n: int = 50, count: int = 50) -> pd.DataFrame:
                         'name': ts_code.split('.')[0],
                         'price': round(price,2),
                         'change_pct': round(change_pct,2),
-                        'volume': 0
+                        'volume': 0,
+                        'amount': 0
                     })
             except:
                 continue
@@ -251,6 +252,7 @@ def get_today_gainers(n: int = 50, count: int = 50) -> pd.DataFrame:
         prev_close = float(parts[2]) if parts[2] else 0.0
         current_price = float(parts[3]) if parts[3] else 0.0
         volume = float(parts[8]) if len(parts) >8 and parts[8] else 0.0  # 成交量（股）
+        amount = float(parts[9]) if len(parts) >9 and parts[9] else 0.0  # 成交额（元）
         
         # 计算涨跌幅
         if prev_close > 0 and current_price > 0:
@@ -284,7 +286,8 @@ def get_today_gainers(n: int = 50, count: int = 50) -> pd.DataFrame:
                 'name': name if name else ts_code.split('.')[0],
                 'price': round(current_price, 2),
                 'change_pct': round(change_pct, 2),
-                'volume': round(volume / 1000000, 2)  # 股 → 万手：1万手 = 1,000,000股
+                'volume': round(volume / 1000000, 2),  # 股 → 万手：1万手 = 1,000,000股
+                'amount': round(amount / 100000000, 2)  # 元 → 亿元
             })
     
     # 按涨跌幅从高到低排序

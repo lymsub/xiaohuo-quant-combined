@@ -376,7 +376,18 @@ class PortfolioManager:
                 enriched_pos['profit_status'] = 'profit' if profit >= 0 else 'loss'
                 enriched_positions.append(enriched_pos)
             else:
-                enriched_positions.append(pos)
+                fallback_pos = pos.copy()
+                fallback_pos['latest_price'] = pos.get('buy_price', 0)
+                fallback_pos['market_value'] = pos.get('buy_price', 0) * pos.get('quantity', 0)
+                fallback_pos['cost'] = pos.get('buy_price', 0) * pos.get('quantity', 0)
+                fallback_pos['profit'] = 0
+                fallback_pos['profit_pct'] = 0
+                fallback_pos['daily_change_pct'] = 0
+                fallback_pos['profit_status'] = 'unknown'
+                fallback_pos['price_fetch_failed'] = True
+                total_cost += fallback_pos['cost']
+                total_market_value += fallback_pos['market_value']
+                enriched_positions.append(fallback_pos)
         
         # 计算总体收益
         total_profit = total_market_value - total_cost
