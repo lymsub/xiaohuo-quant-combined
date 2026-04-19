@@ -59,7 +59,7 @@ echo "🎥 安装视频生成与语音合成依赖..."
 if [ ! -d "$SCRIPT_DIR/tts_venv" ]; then
     "$PYTHON_BIN" -m venv "$SCRIPT_DIR/tts_venv"
 fi
-"$SCRIPT_DIR/tts_venv/bin/pip" install edge-tts volcenginesdkarkruntime akshare pandas urllib3
+"$SCRIPT_DIR/tts_venv/bin/pip" install edge-tts akshare pandas urllib3
 echo "✅ 视频与语音依赖安装完成"
 echo ""
 
