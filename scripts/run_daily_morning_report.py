@@ -56,24 +56,26 @@ def upload_to_feishu_drive(local_path, file_name):
     """上传文件到飞书云盘，返回飞书内链"""
     try:
         import json
-        # 新版OpenClaw调用工具方式：通过agent执行工具调用
-        cmd = f'''openclaw agent --local --message '{{"name": "feishu_drive_file", "parameters": {{"action": "upload", "file_path": "{local_path}", "file_name": "{file_name}"}}}}' --json'''
+        cmd = f'''openclaw agent --local --agent main --message '{{"name": "feishu_drive_file", "parameters": {{"action": "upload", "file_path": "{local_path}"}}}}' --json'''
         result = os.popen(cmd).read()
-        data = json.loads(result)
-        if "file_token" in data.get("result", {}):
-            return f"https://bytedance.feishu.cn/file/{data['result']['file_token']}"
-        elif "file_token" in data:
-            return f"https://bytedance.feishu.cn/file/{data['file_token']}"
-        else:
-            # 兜底：直接发送视频文件到群
-            send_cmd = f"openclaw message send --channel feishu --target oc_407a74081dd85d531ca4426ab3d7f71a --file_path {local_path}"
-            os.popen(send_cmd).read()
-            return None
+        for line in result.strip().split('\n'):
+            line = line.strip()
+            if line.startswith('{'):
+                try:
+                    data = json.loads(line)
+                    if "file_token" in data.get("result", {}):
+                        return f"https://bytedance.feishu.cn/file/{data['result']['file_token']}"
+                    elif "file_token" in data:
+                        return f"https://bytedance.feishu.cn/file/{data['file_token']}"
+                except json.JSONDecodeError:
+                    continue
+        send_cmd = f"openclaw message send --channel feishu --target oc_407a74081dd85d531ca4426ab3d7f71a --attach {local_path}"
+        os.popen(send_cmd).read()
+        return None
     except Exception as e:
         print(f"飞书上传失败：{e}")
-        # 兜底：直接发送视频文件到群
         try:
-            send_cmd = f"openclaw message send --channel feishu --target oc_407a74081dd85d531ca4426ab3d7f71a --file_path {local_path}"
+            send_cmd = f"openclaw message send --channel feishu --target oc_407a74081dd85d531ca4426ab3d7f71a --attach {local_path}"
             os.popen(send_cmd).read()
         except:
             pass
